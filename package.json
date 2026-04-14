@@ -1,0 +1,17 @@
+{
+  "name": "robscholey-auth-microservice",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/dev.ts"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "@hono/node-server": "^1.19.14",
+    "hono": "^4.12.12"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}
