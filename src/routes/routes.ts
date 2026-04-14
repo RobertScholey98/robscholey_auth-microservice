@@ -10,6 +10,7 @@ import {
   getAnalytics,
 } from './handlers/admin';
 import { logAccess } from './handlers/logging';
+import { getAppMeta, getAppIcon } from './handlers/public';
 
 /** Configures all API routes on the given Hono app instance. */
 export function registerRoutes(app: Hono) {
@@ -22,6 +23,10 @@ export function registerRoutes(app: Hono) {
   app.post('/auth/validate-code', rateLimit, validateCode);
   app.get('/auth/session', getSession);
   app.post('/auth/logout', logout);
+
+  // Public
+  app.get('/apps/:slug/meta', getAppMeta);
+  app.get('/app-icon/:slug', getAppIcon);
 
   // Logging
   app.post('/log-access', logAccess);
