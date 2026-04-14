@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import type { Context } from 'hono';
 import { db } from '../lib/db';
 import { hashPassword, comparePassword } from '../lib/password';
 import { createSessionToken } from '../lib/session';
 import { signJWT } from '../lib/jwt';
+import { rateLimit } from '../middleware/rateLimit';
 import type { User } from '../types';
 
 const auth = new Hono();
@@ -68,7 +68,7 @@ auth.post('/setup', async (c) => {
 });
 
 // POST /auth/login — owner username/password login
-auth.post('/login', async (c) => {
+auth.post('/login', rateLimit, async (c) => {
   const body = await c.req.json<{ username: string; password: string }>();
   if (!body.username || !body.password) {
     return c.json({ error: 'Username and password are required' }, 400);
@@ -89,7 +89,7 @@ auth.post('/login', async (c) => {
 });
 
 // POST /auth/validate-code — code + optional password
-auth.post('/validate-code', async (c) => {
+auth.post('/validate-code', rateLimit, async (c) => {
   const body = await c.req.json<{ code: string; password?: string }>();
   if (!body.code) {
     return c.json({ error: 'Code is required' }, 400);
