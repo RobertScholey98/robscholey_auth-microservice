@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth';
+import { adminRoutes } from './routes/admin';
 
 const app = new Hono().basePath('/api');
 
@@ -21,5 +22,6 @@ app.get('/health', (c) => {
 });
 
 app.route('/auth', authRoutes);
+app.route('/admin', adminRoutes);
 
 export default app;
