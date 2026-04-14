@@ -60,4 +60,5 @@ admin.delete('/apps/:id', async (c) => {
   return c.json({ success: true });
 });
 
+/** Admin route group — owner-only CRUD for apps, users, codes, sessions, and analytics. */
 export { admin as adminRoutes };

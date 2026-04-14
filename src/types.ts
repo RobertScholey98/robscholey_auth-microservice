@@ -1,3 +1,4 @@
+/** A registered sub-application in the platform. The `id` doubles as the URL slug. */
 export interface App {
   id: string;
   name: string;
@@ -7,6 +8,7 @@ export interface App {
   active: boolean;
 }
 
+/** A user in the system. Owner users have credentials; named and anonymous users authenticate via access codes. */
 export interface User {
   id: string;
   name: string;
@@ -16,6 +18,7 @@ export interface User {
   createdAt: Date;
 }
 
+/** An access code that grants access to a set of apps. Can be public (no password) or private (password-protected). */
 export interface AccessCode {
   code: string;
   userId: string | null;
@@ -26,6 +29,7 @@ export interface AccessCode {
   label: string;
 }
 
+/** A server-side session created when a user authenticates via login or access code. */
 export interface Session {
   token: string;
   codeId: string | null;
@@ -36,6 +40,7 @@ export interface Session {
   expiresAt: Date;
 }
 
+/** A record of a session accessing a specific app, used for analytics. */
 export interface AccessLog {
   id: string;
   sessionToken: string;

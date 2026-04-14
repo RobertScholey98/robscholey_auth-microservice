@@ -1,6 +1,12 @@
 import type { MiddlewareHandler } from 'hono';
 import { db } from '../lib/db';
 
+/**
+ * Middleware that validates the request is from an authenticated owner.
+ * Reads `Authorization: Bearer <session-token>` from the header, verifies the session
+ * exists and belongs to an owner user, and sets the user on the Hono context.
+ * Returns 401 for all failure cases with a generic error message.
+ */
 export const adminAuth: MiddlewareHandler = async (c, next) => {
   const authHeader = c.req.header('authorization');
   if (!authHeader?.startsWith('Bearer ')) {

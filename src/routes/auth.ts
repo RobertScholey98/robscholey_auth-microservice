@@ -8,6 +8,14 @@ import type { User } from '../types';
 
 const auth = new Hono();
 
+/**
+ * Creates a session, signs a JWT, and builds the standard auth response object.
+ * Shared by setup, login, and validate-code endpoints to ensure a consistent response shape.
+ * @param user - The authenticated user.
+ * @param codeId - The access code used to authenticate, or `null` for owner login.
+ * @param appIds - The app IDs this session grants access to.
+ * @returns The response payload containing sessionToken, jwt, user, and apps.
+ */
 async function createAuthResponse(
   user: User,
   codeId: string | null,
@@ -191,4 +199,5 @@ auth.post('/logout', async (c) => {
   return c.json({ success: true });
 });
 
+/** Auth route group — handles setup, login, code validation, session checks, and logout. */
 export { auth as authRoutes };

@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 
+/** Tracks the number of requests from an IP within a time window. */
 interface RateLimitEntry {
   count: number;
   resetAt: number;
@@ -18,6 +19,11 @@ setInterval(() => {
   }
 }, WINDOW_MS);
 
+/**
+ * Extracts the client IP address from proxy headers.
+ * @param c - The Hono context (narrowed to the header accessor).
+ * @returns The client IP, or `"unknown"` if no proxy headers are present.
+ */
 function getClientIP(c: { req: { header: (name: string) => string | undefined } }): string {
   return (
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
@@ -26,6 +32,10 @@ function getClientIP(c: { req: { header: (name: string) => string | undefined } 
   );
 }
 
+/**
+ * In-memory rate limiting middleware. Allows {@link MAX_ATTEMPTS} requests per IP
+ * within a {@link WINDOW_MS} window. Returns 429 when exceeded.
+ */
 export const rateLimit: MiddlewareHandler = async (c, next) => {
   const ip = getClientIP(c);
   const now = Date.now();
@@ -46,6 +56,7 @@ export const rateLimit: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
+/** Clears all rate limit state. Test-only — not part of the public API. */
 export function _testResetRateLimit(): void {
   store.clear();
 }
