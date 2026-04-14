@@ -36,7 +36,7 @@ describe('POST /api/auth/setup', () => {
       '/api/auth/setup',
       json({ username: 'rob', password: 'test123' })
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
 
     const body = await res.json();
     expect(body.sessionToken).toMatch(/^sess_/);

@@ -47,6 +47,8 @@ export interface DB {
   getSession(token: string): Promise<Session | null>;
   /** Returns all sessions created from a specific access code. */
   getSessionsByCode(codeId: string): Promise<Session[]>;
+  /** Returns all sessions belonging to a specific user. */
+  getSessionsByUser(userId: string): Promise<Session[]>;
   /** Creates a new session record. */
   createSession(session: Session): Promise<Session>;
   /** Partially updates a session by token. Returns the updated session, or `null` if not found. */
@@ -208,6 +210,11 @@ export class InMemoryDB implements DB {
   /** Returns all sessions created from a specific access code. */
   async getSessionsByCode(codeId: string): Promise<Session[]> {
     return [...this.sessions.values()].filter((s) => s.codeId === codeId);
+  }
+
+  /** Returns all sessions belonging to a specific user. */
+  async getSessionsByUser(userId: string): Promise<Session[]> {
+    return [...this.sessions.values()].filter((s) => s.userId === userId);
   }
 
   /** Creates a new session record. */

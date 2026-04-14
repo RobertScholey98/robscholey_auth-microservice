@@ -31,12 +31,19 @@ export async function createApp(c: Context) {
   return c.json(await db.createApp(app), 201);
 }
 
-/** Partially updates an app by ID. Returns 404 if not found. */
+/** Partially updates an app by ID. Only `name`, `url`, `iconUrl`, `description`, and `active` can be modified. */
 export async function updateApp(c: Context) {
   const id = c.req.param('id')!;
-  const body = await c.req.json<Omit<Partial<App>, 'id'>>();
+  const body = await c.req.json<{ name?: string; url?: string; iconUrl?: string; description?: string; active?: boolean }>();
 
-  const updated = await db.updateApp(id, body);
+  const data: Omit<Partial<App>, 'id'> = {};
+  if (body.name !== undefined) data.name = body.name;
+  if (body.url !== undefined) data.url = body.url;
+  if (body.iconUrl !== undefined) data.iconUrl = body.iconUrl;
+  if (body.description !== undefined) data.description = body.description;
+  if (body.active !== undefined) data.active = body.active;
+
+  const updated = await db.updateApp(id, data);
   if (!updated) {
     return c.json({ error: 'App not found' }, 404);
   }

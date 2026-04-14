@@ -66,7 +66,7 @@ export async function setup(c: Context) {
   });
 
   const allAppIds = (await db.getApps()).map((a) => a.id);
-  return c.json(await createAuthResponse(user, null, allAppIds));
+  return c.json(await createAuthResponse(user, null, allAppIds), 201);
 }
 
 /** Owner username/password login. Returns session token, JWT, and all apps. */

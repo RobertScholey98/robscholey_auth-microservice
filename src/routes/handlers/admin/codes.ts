@@ -9,16 +9,24 @@ import type { AccessCode } from '@/types';
  */
 function generateCodeString(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
   let code = '';
   for (let i = 0; i < 5; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+    code += chars[bytes[i] % chars.length];
   }
   return code;
 }
 
-/** Lists all access codes. */
+/** Strips passwordHash from a code object, replacing it with a hasPassword boolean. */
+function sanitizeCode({ passwordHash, ...rest }: AccessCode) {
+  return { ...rest, hasPassword: passwordHash !== null };
+}
+
+/** Lists all access codes. Strips sensitive fields (passwordHash) from the response. */
 export async function listCodes(c: Context) {
-  return c.json(await db.getCodes());
+  const codes = await db.getCodes();
+  return c.json(codes.map(sanitizeCode));
 }
 
 /**
@@ -67,20 +75,25 @@ export async function createCode(c: Context) {
     label: body.label ?? '',
   };
 
-  return c.json(await db.createCode(accessCode), 201);
+  return c.json(sanitizeCode(await db.createCode(accessCode)), 201);
 }
 
-/** Partially updates an access code. Returns 404 if not found. */
+/** Partially updates an access code. Only `appIds`, `label`, and `expiresAt` can be modified. */
 export async function updateCode(c: Context) {
   const code = c.req.param('code')!;
-  const body = await c.req.json<Omit<Partial<AccessCode>, 'code'>>();
+  const body = await c.req.json<{ appIds?: string[]; label?: string; expiresAt?: string | null }>();
 
-  const updated = await db.updateCode(code, body);
+  const data: Omit<Partial<AccessCode>, 'code'> = {};
+  if (body.appIds !== undefined) data.appIds = body.appIds;
+  if (body.label !== undefined) data.label = body.label;
+  if (body.expiresAt !== undefined) data.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
+
+  const updated = await db.updateCode(code, data);
   if (!updated) {
     return c.json({ error: 'Code not found' }, 404);
   }
 
-  return c.json(updated);
+  return c.json(sanitizeCode(updated));
 }
 
 /** Revokes an access code. Cascades to all sessions created from this code. */

@@ -341,7 +341,8 @@ describe('POST /api/admin/codes', () => {
     const body = await res.json();
     expect(body.code).toMatch(/^[A-Z0-9]{5}$/);
     expect(body.appIds).toEqual(['portfolio']);
-    expect(body.passwordHash).toBeNull();
+    expect(body.hasPassword).toBe(false);
+    expect(body.passwordHash).toBeUndefined();
     expect(body.userId).toBeNull();
     expect(body.label).toBe('Test code');
   });
@@ -363,8 +364,8 @@ describe('POST /api/admin/codes', () => {
     expect(res.status).toBe(201);
 
     const body = await res.json();
-    expect(body.passwordHash).not.toBeNull();
-    expect(body.passwordHash).toMatch(/^\$2[aby]\$/);
+    expect(body.hasPassword).toBe(true);
+    expect(body.passwordHash).toBeUndefined();
   });
 
   it('creates a code with expiry', async () => {

@@ -15,6 +15,16 @@ beforeEach(async () => {
   db._testReset();
   _testResetRateLimit();
 
+  // Register an app before setup so the owner session captures it in appIds
+  await db.createApp({
+    id: 'portfolio',
+    name: 'Portfolio',
+    url: 'https://portfolio.vercel.app',
+    iconUrl: '',
+    description: '',
+    active: true,
+  });
+
   const res = await app.request('/api/auth/setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -52,6 +62,14 @@ describe('POST /api/log-access', () => {
       json({ sessionToken })
     );
     expect(res.status).toBe(400);
+  });
+
+  it('rejects appId not in session permitted apps', async () => {
+    const res = await app.request(
+      '/api/log-access',
+      json({ sessionToken, appId: 'not-permitted' })
+    );
+    expect(res.status).toBe(403);
   });
 
   it('rejects invalid session token', async () => {

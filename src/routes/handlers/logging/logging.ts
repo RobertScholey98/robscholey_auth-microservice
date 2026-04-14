@@ -16,6 +16,14 @@ export async function logAccess(c: Context) {
     return c.json({ error: 'Invalid session' }, 401);
   }
 
+  if (session.expiresAt < new Date()) {
+    return c.json({ error: 'Session expired' }, 401);
+  }
+
+  if (!session.appIds.includes(body.appId)) {
+    return c.json({ error: 'App not permitted for this session' }, 403);
+  }
+
   await db.logAccess({
     id: crypto.randomUUID(),
     sessionToken: body.sessionToken,

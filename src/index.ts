@@ -9,7 +9,7 @@ app.use(
   cors({
     origin: (origin) => {
       const allowed = (process.env.ALLOWED_ORIGINS || '').split(',');
-      return allowed.includes(origin) ? origin : '';
+      return allowed.includes(origin) ? origin : undefined;
     },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],

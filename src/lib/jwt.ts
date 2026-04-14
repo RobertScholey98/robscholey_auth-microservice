@@ -23,8 +23,8 @@ function getSigningKey(): Uint8Array {
  * Defaults to `"3600s"` (1 hour) if not set.
  */
 function getExpiry(): string {
-  const seconds = process.env.JWT_EXPIRY || '3600';
-  return `${seconds}s`;
+  const raw = (process.env.JWT_EXPIRY || '3600').replace(/s$/i, '');
+  return `${raw}s`;
 }
 
 /**
