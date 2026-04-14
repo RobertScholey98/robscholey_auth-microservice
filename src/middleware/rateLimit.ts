@@ -45,3 +45,7 @@ export const rateLimit: MiddlewareHandler = async (c, next) => {
 
   await next();
 };
+
+export function _testResetRateLimit(): void {
+  store.clear();
+}

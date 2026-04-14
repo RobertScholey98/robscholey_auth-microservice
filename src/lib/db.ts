@@ -48,6 +48,14 @@ export class InMemoryDB implements DB {
   private sessions = new Map<string, Session>();
   private accessLogs: AccessLog[] = [];
 
+  _testReset(): void {
+    this.apps.clear();
+    this.users.clear();
+    this.codes.clear();
+    this.sessions.clear();
+    this.accessLogs = [];
+  }
+
   // Apps
 
   async getApps(): Promise<App[]> {
