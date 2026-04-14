@@ -487,3 +487,128 @@ describe('DELETE /api/admin/codes/:code', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// --- Sessions ---
+
+describe('GET /api/admin/sessions', () => {
+  it('returns all sessions', async () => {
+    const res = await adminReq('GET', '/api/admin/sessions');
+    expect(res.status).toBe(200);
+
+    const sessions = await res.json();
+    // At least the owner session from setup
+    expect(sessions.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('filters by codeId', async () => {
+    await db.createSession({
+      token: 'sess_code1',
+      codeId: 'ABC',
+      userId: null,
+      appIds: [],
+      createdAt: new Date(),
+      lastActiveAt: new Date(),
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const res = await adminReq('GET', '/api/admin/sessions?codeId=ABC');
+    const sessions = await res.json();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].codeId).toBe('ABC');
+  });
+});
+
+describe('DELETE /api/admin/sessions/:token', () => {
+  it('deletes a session', async () => {
+    await db.createSession({
+      token: 'sess_to_delete',
+      codeId: null,
+      userId: null,
+      appIds: [],
+      createdAt: new Date(),
+      lastActiveAt: new Date(),
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const res = await adminReq('DELETE', '/api/admin/sessions/sess_to_delete');
+    expect(res.status).toBe(200);
+    expect(await db.getSession('sess_to_delete')).toBeNull();
+  });
+
+  it('returns 404 for nonexistent session', async () => {
+    const res = await adminReq('DELETE', '/api/admin/sessions/fake');
+    expect(res.status).toBe(404);
+  });
+});
+
+// --- Analytics ---
+
+describe('GET /api/admin/analytics', () => {
+  beforeEach(async () => {
+    const now = new Date();
+    await db.logAccess({
+      id: 'log-1',
+      sessionToken: ownerToken,
+      codeId: null,
+      appId: 'portfolio',
+      accessedAt: now,
+      userAgent: 'test',
+    });
+    await db.logAccess({
+      id: 'log-2',
+      sessionToken: ownerToken,
+      codeId: null,
+      appId: 'admin',
+      accessedAt: now,
+      userAgent: 'test',
+    });
+    await db.logAccess({
+      id: 'log-3',
+      sessionToken: 'sess_other',
+      codeId: 'XK7F2',
+      appId: 'portfolio',
+      accessedAt: new Date(now.getTime() - 86400000), // yesterday
+      userAgent: 'test',
+    });
+  });
+
+  it('returns all logs and stats with no filters', async () => {
+    const res = await adminReq('GET', '/api/admin/analytics');
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.logs).toHaveLength(3);
+    expect(body.stats.totalAccesses).toBe(3);
+    expect(body.stats.uniqueSessions).toBe(2);
+    expect(body.stats.appBreakdown.portfolio).toBe(2);
+    expect(body.stats.appBreakdown.admin).toBe(1);
+  });
+
+  it('filters by appId', async () => {
+    const res = await adminReq('GET', '/api/admin/analytics?appId=portfolio');
+    const body = await res.json();
+    expect(body.logs).toHaveLength(2);
+    expect(body.stats.totalAccesses).toBe(2);
+  });
+
+  it('filters by codeId', async () => {
+    const res = await adminReq('GET', '/api/admin/analytics?codeId=XK7F2');
+    const body = await res.json();
+    expect(body.logs).toHaveLength(1);
+    expect(body.logs[0].codeId).toBe('XK7F2');
+  });
+
+  it('filters by date range', async () => {
+    const now = new Date();
+    const from = new Date(now.getTime() - 3600000).toISOString(); // 1 hour ago
+    const to = new Date(now.getTime() + 3600000).toISOString(); // 1 hour from now
+
+    const res = await adminReq(
+      'GET',
+      `/api/admin/analytics?from=${from}&to=${to}`
+    );
+    const body = await res.json();
+    // Only today's 2 logs, not yesterday's
+    expect(body.logs).toHaveLength(2);
+  });
+});

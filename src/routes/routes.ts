@@ -6,7 +6,10 @@ import {
   listApps, createApp, updateApp, deleteApp,
   listUsers, createUser, updateUser, deleteUser,
   listCodes, createCode, updateCode, deleteCode,
+  listSessions, deleteSession,
+  getAnalytics,
 } from './handlers/admin';
+import { logAccess } from './handlers/logging';
 
 /** Configures all API routes on the given Hono app instance. */
 export function registerRoutes(app: Hono) {
@@ -19,6 +22,9 @@ export function registerRoutes(app: Hono) {
   app.post('/auth/validate-code', rateLimit, validateCode);
   app.get('/auth/session', getSession);
   app.post('/auth/logout', logout);
+
+  // Logging
+  app.post('/log-access', logAccess);
 
   /*
     Admin (all routes require owner session)
@@ -43,4 +49,11 @@ export function registerRoutes(app: Hono) {
   app.post('/admin/codes', createCode);
   app.put('/admin/codes/:code', updateCode);
   app.delete('/admin/codes/:code', deleteCode);
+
+  //  Sessions
+  app.get('/admin/sessions', listSessions);
+  app.delete('/admin/sessions/:token', deleteSession);
+
+  //  Analytics
+  app.get('/admin/analytics', getAnalytics);
 }

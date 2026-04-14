@@ -1,0 +1,1 @@
+export { logAccess } from './logging';

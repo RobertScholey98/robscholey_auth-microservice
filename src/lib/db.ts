@@ -41,6 +41,8 @@ export interface DB {
   /** Deletes an access code. Returns `true` if the code existed. */
   deleteCode(code: string): Promise<boolean>;
 
+  /** Returns all sessions. */
+  getSessions(): Promise<Session[]>;
   /** Returns a single session by token, or `null` if not found. */
   getSession(token: string): Promise<Session | null>;
   /** Returns all sessions created from a specific access code. */
@@ -191,6 +193,11 @@ export class InMemoryDB implements DB {
   /** Deletes an access code. Returns `true` if the code existed. */
   async deleteCode(code: string): Promise<boolean> {
     return this.codes.delete(code);
+  }
+
+  /** Returns all sessions. */
+  async getSessions(): Promise<Session[]> {
+    return [...this.sessions.values()];
   }
 
   /** Returns a single session by token, or `null` if not found. */
