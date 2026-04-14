@@ -1,4 +1,4 @@
-import type { App, User, AccessCode, Session, AccessLog } from '../types';
+import type { App, User, AccessCode, Session, AccessLog } from '@/types';
 
 /** Abstract database interface. All data operations go through this contract, making the storage backend swappable. */
 export interface DB {

@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
-import { db } from '../lib/db';
+import { db } from '@/lib';
 
 /**
  * Middleware that validates the request is from an authenticated owner.

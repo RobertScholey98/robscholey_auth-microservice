@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import app from '../../index';
-import { db } from '../../lib/db';
-import { hashPassword } from '../../lib/password';
-import { _testResetRateLimit } from '../../middleware/rateLimit';
+import app from '@/index';
+import { db, hashPassword } from '@/lib';
+import { _testResetRateLimit } from '@/middleware';
 
 beforeAll(() => {
   process.env.JWT_SIGNING_SECRET = 'test-secret';

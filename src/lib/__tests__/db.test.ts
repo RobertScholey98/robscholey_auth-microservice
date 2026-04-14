@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemoryDB } from '../db';
-import type { App, User, AccessCode, Session, AccessLog } from '../../types';
+import type { App, User, AccessCode, Session, AccessLog } from '@/types';
 
 let db: InMemoryDB;
 

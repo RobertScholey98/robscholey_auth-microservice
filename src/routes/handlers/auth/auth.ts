@@ -1,16 +1,10 @@
-import { Hono } from 'hono';
-import { db } from '../lib/db';
-import { hashPassword, comparePassword } from '../lib/password';
-import { createSessionToken } from '../lib/session';
-import { signJWT } from '../lib/jwt';
-import { rateLimit } from '../middleware/rateLimit';
-import type { User } from '../types';
-
-const auth = new Hono();
+import type { Context } from 'hono';
+import { db, hashPassword, comparePassword, createSessionToken, signJWT } from '@/lib';
+import type { User } from '@/types';
 
 /**
  * Creates a session, signs a JWT, and builds the standard auth response object.
- * Shared by setup, login, and validate-code endpoints to ensure a consistent response shape.
+ * Shared by setup, login, and validate-code handlers to ensure a consistent response shape.
  * @param user - The authenticated user.
  * @param codeId - The access code used to authenticate, or `null` for owner login.
  * @param appIds - The app IDs this session grants access to.
@@ -50,8 +44,8 @@ async function createAuthResponse(
   };
 }
 
-// POST /auth/setup — one-time owner bootstrap
-auth.post('/setup', async (c) => {
+/** One-time owner bootstrap. Creates the first owner account. Sealed after first use. */
+export async function setup(c: Context) {
   const owners = (await db.getUsers()).filter((u) => u.type === 'owner');
   if (owners.length > 0) {
     return c.json({ error: 'Setup already completed' }, 403);
@@ -73,10 +67,10 @@ auth.post('/setup', async (c) => {
 
   const allAppIds = (await db.getApps()).map((a) => a.id);
   return c.json(await createAuthResponse(user, null, allAppIds));
-});
+}
 
-// POST /auth/login — owner username/password login
-auth.post('/login', rateLimit, async (c) => {
+/** Owner username/password login. Returns session token, JWT, and all apps. */
+export async function login(c: Context) {
   const body = await c.req.json<{ username: string; password: string }>();
   if (!body.username || !body.password) {
     return c.json({ error: 'Username and password are required' }, 400);
@@ -94,10 +88,14 @@ auth.post('/login', rateLimit, async (c) => {
 
   const allAppIds = (await db.getApps()).map((a) => a.id);
   return c.json(await createAuthResponse(user, null, allAppIds));
-});
+}
 
-// POST /auth/validate-code — code + optional password
-auth.post('/validate-code', rateLimit, async (c) => {
+/**
+ * Validates an access code with optional password.
+ * Returns `{ requiresPassword: true }` if the code is private and no password was provided.
+ * Creates an anonymous user if the code is not linked to a named user.
+ */
+export async function validateCode(c: Context) {
   const body = await c.req.json<{ code: string; password?: string }>();
   if (!body.code) {
     return c.json({ error: 'Code is required' }, 400);
@@ -112,7 +110,6 @@ auth.post('/validate-code', rateLimit, async (c) => {
     return c.json({ error: 'Code has expired' }, 401);
   }
 
-  // Private code — needs password
   if (code.passwordHash) {
     if (!body.password) {
       return c.json({ requiresPassword: true }, 200);
@@ -123,7 +120,6 @@ auth.post('/validate-code', rateLimit, async (c) => {
     }
   }
 
-  // Resolve user (if code is linked to one, otherwise create anonymous)
   let user: User;
   if (code.userId) {
     const existing = await db.getUser(code.userId);
@@ -141,10 +137,10 @@ auth.post('/validate-code', rateLimit, async (c) => {
   }
 
   return c.json(await createAuthResponse(user, code.code, code.appIds));
-});
+}
 
-// GET /auth/session — validate token, return apps + fresh JWT
-auth.get('/session', async (c) => {
+/** Validates a session token and returns the user, apps, and a fresh JWT. */
+export async function getSession(c: Context) {
   const token = c.req.query('token');
   if (!token) {
     return c.json({ error: 'Token is required' }, 400);
@@ -164,7 +160,6 @@ auth.get('/session', async (c) => {
 
   const user = session.userId ? await db.getUser(session.userId) : null;
 
-  // Owner sessions get all current apps; code sessions keep their snapshot
   let appIds = session.appIds;
   if (user?.type === 'owner') {
     appIds = (await db.getApps()).map((a) => a.id);
@@ -186,10 +181,10 @@ auth.get('/session', async (c) => {
       : null,
     apps,
   });
-});
+}
 
-// POST /auth/logout — invalidate session
-auth.post('/logout', async (c) => {
+/** Invalidates a session by deleting it. Idempotent — succeeds even if the session doesn't exist. */
+export async function logout(c: Context) {
   const body = await c.req.json<{ sessionToken: string }>();
   if (!body.sessionToken) {
     return c.json({ error: 'Session token is required' }, 400);
@@ -197,7 +192,4 @@ auth.post('/logout', async (c) => {
 
   await db.deleteSession(body.sessionToken);
   return c.json({ success: true });
-});
-
-/** Auth route group — handles setup, login, code validation, session checks, and logout. */
-export { auth as authRoutes };
+}
