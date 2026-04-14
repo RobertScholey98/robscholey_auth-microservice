@@ -10,11 +10,7 @@ import type { User } from '@/types';
  * @param appIds - The app IDs this session grants access to.
  * @returns The response payload containing sessionToken, jwt, user, and apps.
  */
-async function createAuthResponse(
-  user: User,
-  codeId: string | null,
-  appIds: string[]
-) {
+async function createAuthResponse(user: User, codeId: string | null, appIds: string[]) {
   const token = createSessionToken();
   const now = new Date();
 
@@ -176,9 +172,7 @@ export async function getSession(c: Context) {
   return c.json({
     sessionToken: token,
     jwt,
-    user: user
-      ? { id: user.id, name: user.name, type: user.type }
-      : null,
+    user: user ? { id: user.id, name: user.name, type: user.type } : null,
     apps,
   });
 }

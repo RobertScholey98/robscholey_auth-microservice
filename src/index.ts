@@ -13,7 +13,7 @@ app.use(
     },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
-  })
+  }),
 );
 
 registerRoutes(app);

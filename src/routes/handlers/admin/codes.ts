@@ -68,9 +68,7 @@ export async function createCode(c: Context) {
     userId: body.userId ?? null,
     appIds: body.appIds,
     passwordHash: body.password ? await hashPassword(body.password) : null,
-    expiresAt: body.expiresIn
-      ? new Date(Date.now() + body.expiresIn * 1000)
-      : null,
+    expiresAt: body.expiresIn ? new Date(Date.now() + body.expiresIn * 1000) : null,
     createdAt: new Date(),
     label: body.label ?? '',
   };
@@ -86,7 +84,8 @@ export async function updateCode(c: Context) {
   const data: Omit<Partial<AccessCode>, 'code'> = {};
   if (body.appIds !== undefined) data.appIds = body.appIds;
   if (body.label !== undefined) data.label = body.label;
-  if (body.expiresAt !== undefined) data.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
+  if (body.expiresAt !== undefined)
+    data.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
 
   const updated = await db.updateCode(code, data);
   if (!updated) {

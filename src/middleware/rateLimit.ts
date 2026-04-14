@@ -26,9 +26,7 @@ setInterval(() => {
  */
 function getClientIP(c: { req: { header: (name: string) => string | undefined } }): string {
   return (
-    c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
-    c.req.header('x-real-ip') ||
-    'unknown'
+    c.req.header('x-forwarded-for')?.split(',')[0].trim() || c.req.header('x-real-ip') || 'unknown'
   );
 }
 
@@ -43,10 +41,7 @@ export const rateLimit: MiddlewareHandler = async (c, next) => {
 
   if (entry && now < entry.resetAt) {
     if (entry.count >= MAX_ATTEMPTS) {
-      return c.json(
-        { error: 'Too many attempts. Try again later.' },
-        429
-      );
+      return c.json({ error: 'Too many attempts. Try again later.' }, 429);
     }
     entry.count++;
   } else {

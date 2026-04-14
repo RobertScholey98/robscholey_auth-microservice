@@ -3,7 +3,7 @@ import { db } from '@/lib';
 import type { User } from '@/types';
 
 /** Strips passwordHash from a user object before sending in a response. */
-function sanitizeUser({ passwordHash, ...rest }: User) {
+function sanitizeUser({ passwordHash: _passwordHash, ...rest }: User) {
   return rest;
 }
 

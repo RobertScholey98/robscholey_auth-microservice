@@ -23,10 +23,7 @@ function json(body: object) {
 }
 
 async function setupOwner() {
-  const res = await app.request(
-    '/api/auth/setup',
-    json({ username: 'rob', password: 'test123' })
-  );
+  const res = await app.request('/api/auth/setup', json({ username: 'rob', password: 'test123' }));
   return res.json();
 }
 
@@ -34,7 +31,7 @@ describe('POST /api/auth/setup', () => {
   it('creates an owner and returns session + jwt', async () => {
     const res = await app.request(
       '/api/auth/setup',
-      json({ username: 'rob', password: 'test123' })
+      json({ username: 'rob', password: 'test123' }),
     );
     expect(res.status).toBe(201);
 
@@ -51,18 +48,12 @@ describe('POST /api/auth/setup', () => {
 
   it('rejects second setup attempt', async () => {
     await setupOwner();
-    const res = await app.request(
-      '/api/auth/setup',
-      json({ username: 'rob2', password: 'pass' })
-    );
+    const res = await app.request('/api/auth/setup', json({ username: 'rob2', password: 'pass' }));
     expect(res.status).toBe(403);
   });
 
   it('rejects missing fields', async () => {
-    const res = await app.request(
-      '/api/auth/setup',
-      json({ username: 'rob' })
-    );
+    const res = await app.request('/api/auth/setup', json({ username: 'rob' }));
     expect(res.status).toBe(400);
   });
 });
@@ -72,7 +63,7 @@ describe('POST /api/auth/login', () => {
     await setupOwner();
     const res = await app.request(
       '/api/auth/login',
-      json({ username: 'rob', password: 'test123' })
+      json({ username: 'rob', password: 'test123' }),
     );
     expect(res.status).toBe(200);
 
@@ -83,10 +74,7 @@ describe('POST /api/auth/login', () => {
 
   it('rejects wrong password', async () => {
     await setupOwner();
-    const res = await app.request(
-      '/api/auth/login',
-      json({ username: 'rob', password: 'wrong' })
-    );
+    const res = await app.request('/api/auth/login', json({ username: 'rob', password: 'wrong' }));
     expect(res.status).toBe(401);
   });
 
@@ -94,7 +82,7 @@ describe('POST /api/auth/login', () => {
     await setupOwner();
     const res = await app.request(
       '/api/auth/login',
-      json({ username: 'nobody', password: 'test' })
+      json({ username: 'nobody', password: 'test' }),
     );
     expect(res.status).toBe(401);
   });
@@ -103,7 +91,7 @@ describe('POST /api/auth/login', () => {
 describe('POST /api/auth/validate-code', () => {
   async function createCode(
     code: string,
-    opts: { passwordHash?: string; userId?: string; expiresAt?: Date } = {}
+    opts: { passwordHash?: string; userId?: string; expiresAt?: Date } = {},
   ) {
     await db.createCode({
       code,
@@ -118,10 +106,7 @@ describe('POST /api/auth/validate-code', () => {
 
   it('validates a public code', async () => {
     await createCode('XK7F2');
-    const res = await app.request(
-      '/api/auth/validate-code',
-      json({ code: 'XK7F2' })
-    );
+    const res = await app.request('/api/auth/validate-code', json({ code: 'XK7F2' }));
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -131,20 +116,14 @@ describe('POST /api/auth/validate-code', () => {
 
   it('returns requiresPassword for private code without password', async () => {
     await createCode('PRIV', { passwordHash: '$2b$10$hashedvalue' });
-    const res = await app.request(
-      '/api/auth/validate-code',
-      json({ code: 'PRIV' })
-    );
+    const res = await app.request('/api/auth/validate-code', json({ code: 'PRIV' }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.requiresPassword).toBe(true);
   });
 
   it('rejects invalid code', async () => {
-    const res = await app.request(
-      '/api/auth/validate-code',
-      json({ code: 'NOPE' })
-    );
+    const res = await app.request('/api/auth/validate-code', json({ code: 'NOPE' }));
     expect(res.status).toBe(401);
   });
 
@@ -153,7 +132,7 @@ describe('POST /api/auth/validate-code', () => {
     await createCode('PRIV2', { passwordHash: hash });
     const res = await app.request(
       '/api/auth/validate-code',
-      json({ code: 'PRIV2', password: 'secret' })
+      json({ code: 'PRIV2', password: 'secret' }),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -165,7 +144,7 @@ describe('POST /api/auth/validate-code', () => {
     await createCode('PRIV3', { passwordHash: hash });
     const res = await app.request(
       '/api/auth/validate-code',
-      json({ code: 'PRIV3', password: 'wrong' })
+      json({ code: 'PRIV3', password: 'wrong' }),
     );
     expect(res.status).toBe(401);
   });
@@ -178,10 +157,7 @@ describe('POST /api/auth/validate-code', () => {
       createdAt: new Date(),
     });
     await createCode('SARAH', { userId: 'sarah-id' });
-    const res = await app.request(
-      '/api/auth/validate-code',
-      json({ code: 'SARAH' })
-    );
+    const res = await app.request('/api/auth/validate-code', json({ code: 'SARAH' }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.user.name).toBe('Sarah');
@@ -190,27 +166,18 @@ describe('POST /api/auth/validate-code', () => {
 
   it('rejects code with deleted userId', async () => {
     await createCode('GHOST', { userId: 'deleted-user' });
-    const res = await app.request(
-      '/api/auth/validate-code',
-      json({ code: 'GHOST' })
-    );
+    const res = await app.request('/api/auth/validate-code', json({ code: 'GHOST' }));
     expect(res.status).toBe(401);
   });
 
   it('rejects missing code field', async () => {
-    const res = await app.request(
-      '/api/auth/validate-code',
-      json({})
-    );
+    const res = await app.request('/api/auth/validate-code', json({}));
     expect(res.status).toBe(400);
   });
 
   it('rejects expired code', async () => {
     await createCode('OLD', { expiresAt: new Date(Date.now() - 1000) });
-    const res = await app.request(
-      '/api/auth/validate-code',
-      json({ code: 'OLD' })
-    );
+    const res = await app.request('/api/auth/validate-code', json({ code: 'OLD' }));
     expect(res.status).toBe(401);
   });
 });
@@ -280,23 +247,15 @@ describe('POST /api/auth/logout', () => {
   it('invalidates a session', async () => {
     const { sessionToken } = await setupOwner();
 
-    const logoutRes = await app.request(
-      '/api/auth/logout',
-      json({ sessionToken })
-    );
+    const logoutRes = await app.request('/api/auth/logout', json({ sessionToken }));
     expect(logoutRes.status).toBe(200);
 
-    const sessionRes = await app.request(
-      `/api/auth/session?token=${sessionToken}`
-    );
+    const sessionRes = await app.request(`/api/auth/session?token=${sessionToken}`);
     expect(sessionRes.status).toBe(401);
   });
 
   it('succeeds even with invalid token (idempotent)', async () => {
-    const res = await app.request(
-      '/api/auth/logout',
-      json({ sessionToken: 'nonexistent' })
-    );
+    const res = await app.request('/api/auth/logout', json({ sessionToken: 'nonexistent' }));
     expect(res.status).toBe(200);
   });
 
@@ -312,28 +271,22 @@ describe('Rate limiting', () => {
     for (let i = 0; i < 5; i++) {
       const res = await app.request(
         '/api/auth/login',
-        json({ username: 'rob', password: 'wrong' })
+        json({ username: 'rob', password: 'wrong' }),
       );
       expect(res.status).toBe(401);
     }
     const blocked = await app.request(
       '/api/auth/login',
-      json({ username: 'rob', password: 'wrong' })
+      json({ username: 'rob', password: 'wrong' }),
     );
     expect(blocked.status).toBe(429);
   });
 
   it('blocks after 5 failed validate-code attempts', async () => {
     for (let i = 0; i < 5; i++) {
-      await app.request(
-        '/api/auth/validate-code',
-        json({ code: 'WRONG' })
-      );
+      await app.request('/api/auth/validate-code', json({ code: 'WRONG' }));
     }
-    const blocked = await app.request(
-      '/api/auth/validate-code',
-      json({ code: 'WRONG' })
-    );
+    const blocked = await app.request('/api/auth/validate-code', json({ code: 'WRONG' }));
     expect(blocked.status).toBe(429);
   });
 });
@@ -347,9 +300,7 @@ describe('CORS', () => {
         'Access-Control-Request-Method': 'GET',
       },
     });
-    expect(res.headers.get('access-control-allow-origin')).toBe(
-      'http://localhost:3000'
-    );
+    expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
   });
 
   it('does not return allow-origin for disallowed origin', async () => {
@@ -360,9 +311,7 @@ describe('CORS', () => {
         'Access-Control-Request-Method': 'GET',
       },
     });
-    expect(res.headers.get('access-control-allow-origin')).not.toBe(
-      'http://evil.com'
-    );
+    expect(res.headers.get('access-control-allow-origin')).not.toBe('http://evil.com');
   });
 });
 

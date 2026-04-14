@@ -44,10 +44,7 @@ function json(body: object) {
 
 describe('POST /api/log-access', () => {
   it('logs an access event', async () => {
-    const res = await app.request(
-      '/api/log-access',
-      json({ sessionToken, appId: 'portfolio' })
-    );
+    const res = await app.request('/api/log-access', json({ sessionToken, appId: 'portfolio' }));
     expect(res.status).toBe(200);
 
     const logs = await db.getAccessLogs({ appId: 'portfolio' });
@@ -57,17 +54,14 @@ describe('POST /api/log-access', () => {
   });
 
   it('rejects missing fields', async () => {
-    const res = await app.request(
-      '/api/log-access',
-      json({ sessionToken })
-    );
+    const res = await app.request('/api/log-access', json({ sessionToken }));
     expect(res.status).toBe(400);
   });
 
   it('rejects appId not in session permitted apps', async () => {
     const res = await app.request(
       '/api/log-access',
-      json({ sessionToken, appId: 'not-permitted' })
+      json({ sessionToken, appId: 'not-permitted' }),
     );
     expect(res.status).toBe(403);
   });
@@ -75,7 +69,7 @@ describe('POST /api/log-access', () => {
   it('rejects invalid session token', async () => {
     const res = await app.request(
       '/api/log-access',
-      json({ sessionToken: 'fake', appId: 'portfolio' })
+      json({ sessionToken: 'fake', appId: 'portfolio' }),
     );
     expect(res.status).toBe(401);
   });

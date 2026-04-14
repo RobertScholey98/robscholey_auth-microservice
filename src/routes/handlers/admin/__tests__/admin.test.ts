@@ -604,10 +604,7 @@ describe('GET /api/admin/analytics', () => {
     const from = new Date(now.getTime() - 3600000).toISOString(); // 1 hour ago
     const to = new Date(now.getTime() + 3600000).toISOString(); // 1 hour from now
 
-    const res = await adminReq(
-      'GET',
-      `/api/admin/analytics?from=${from}&to=${to}`
-    );
+    const res = await adminReq('GET', `/api/admin/analytics?from=${from}&to=${to}`);
     const body = await res.json();
     // Only today's 2 logs, not yesterday's
     expect(body.logs).toHaveLength(2);

@@ -3,10 +3,20 @@ import { rateLimit, adminAuth } from '@/middleware';
 
 import { setup, login, validateCode, getSession, logout } from './handlers/auth';
 import {
-  listApps, createApp, updateApp, deleteApp,
-  listUsers, createUser, updateUser, deleteUser,
-  listCodes, createCode, updateCode, deleteCode,
-  listSessions, deleteSession,
+  listApps,
+  createApp,
+  updateApp,
+  deleteApp,
+  listUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  listCodes,
+  createCode,
+  updateCode,
+  deleteCode,
+  listSessions,
+  deleteSession,
   getAnalytics,
 } from './handlers/admin';
 import { logAccess } from './handlers/logging';

@@ -34,7 +34,13 @@ export async function createApp(c: Context) {
 /** Partially updates an app by ID. Only `name`, `url`, `iconUrl`, `description`, and `active` can be modified. */
 export async function updateApp(c: Context) {
   const id = c.req.param('id')!;
-  const body = await c.req.json<{ name?: string; url?: string; iconUrl?: string; description?: string; active?: boolean }>();
+  const body = await c.req.json<{
+    name?: string;
+    url?: string;
+    iconUrl?: string;
+    description?: string;
+    active?: boolean;
+  }>();
 
   const data: Omit<Partial<App>, 'id'> = {};
   if (body.name !== undefined) data.name = body.name;

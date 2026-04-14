@@ -184,7 +184,10 @@ export class InMemoryDB implements DB {
   }
 
   /** Partially updates an access code. Returns the updated code, or `null` if not found. */
-  async updateCode(code: string, data: Omit<Partial<AccessCode>, 'code'>): Promise<AccessCode | null> {
+  async updateCode(
+    code: string,
+    data: Omit<Partial<AccessCode>, 'code'>,
+  ): Promise<AccessCode | null> {
     const existing = this.codes.get(code);
     if (!existing) return null;
     const updated = { ...existing, ...data, code };
@@ -224,7 +227,10 @@ export class InMemoryDB implements DB {
   }
 
   /** Partially updates a session by token. Returns the updated session, or `null` if not found. */
-  async updateSession(token: string, data: Omit<Partial<Session>, 'token'>): Promise<Session | null> {
+  async updateSession(
+    token: string,
+    data: Omit<Partial<Session>, 'token'>,
+  ): Promise<Session | null> {
     const session = this.sessions.get(token);
     if (!session) return null;
     const updated = { ...session, ...data, token };

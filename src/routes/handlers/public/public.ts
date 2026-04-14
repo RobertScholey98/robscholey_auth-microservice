@@ -21,7 +21,10 @@ export async function getAppIcon(c: Context) {
   }
 
   // Placeholder: return a simple SVG with the app's first letter
-  const letter = meta.name.charAt(0).toUpperCase().replace(/[^A-Z0-9]/g, '?');
+  const letter = meta.name
+    .charAt(0)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '?');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
   <rect width="192" height="192" rx="32" fill="#1a1a1a"/>
   <text x="96" y="96" font-family="system-ui, sans-serif" font-size="96" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${letter}</text>

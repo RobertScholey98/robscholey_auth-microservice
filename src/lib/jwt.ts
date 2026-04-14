@@ -45,9 +45,7 @@ export async function signJWT(payload: JWTPayload): Promise<string> {
  * @param token - The JWT string to verify.
  * @returns The decoded payload, or `null` if the token is invalid, expired, or tampered with.
  */
-export async function verifyJWT(
-  token: string
-): Promise<JWTPayload | null> {
+export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSigningKey());
     return payload as unknown as JWTPayload;
