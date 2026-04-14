@@ -9,7 +9,8 @@
   "dependencies": {
     "@hono/node-server": "^1.19.14",
     "bcryptjs": "^3.0.3",
-    "hono": "^4.12.12"
+    "hono": "^4.12.12",
+    "jose": "^6.2.2"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
