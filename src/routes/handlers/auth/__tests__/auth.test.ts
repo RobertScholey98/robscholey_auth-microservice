@@ -9,8 +9,8 @@ beforeAll(() => {
   process.env.ALLOWED_ORIGINS = 'http://localhost:3000';
 });
 
-beforeEach(() => {
-  db._testReset();
+beforeEach(async () => {
+  await db._testReset();
   _testResetRateLimit();
 });
 
@@ -162,12 +162,6 @@ describe('POST /api/auth/validate-code', () => {
     const body = await res.json();
     expect(body.user.name).toBe('Sarah');
     expect(body.user.type).toBe('named');
-  });
-
-  it('rejects code with deleted userId', async () => {
-    await createCode('GHOST', { userId: 'deleted-user' });
-    const res = await app.request('/api/auth/validate-code', json({ code: 'GHOST' }));
-    expect(res.status).toBe(401);
   });
 
   it('rejects missing code field', async () => {

@@ -64,6 +64,9 @@ export interface DB {
     sessionToken?: string;
     appId?: string;
   }): Promise<AccessLog[]>;
+
+  /** Clears all data. Test-only — implementations should truncate all storage. */
+  _testReset(): Promise<void>;
 }
 
 /**
@@ -78,8 +81,8 @@ export class InMemoryDB implements DB {
   private sessions = new Map<string, Session>();
   private accessLogs: AccessLog[] = [];
 
-  /** Clears all data. Test-only — not part of the DB interface. */
-  _testReset(): void {
+  /** Clears all data. Test-only helper. */
+  async _testReset(): Promise<void> {
     this.apps.clear();
     this.users.clear();
     this.codes.clear();
@@ -263,5 +266,3 @@ export class InMemoryDB implements DB {
   }
 }
 
-/** Singleton database instance. Import this in route handlers to access data. */
-export const db = new InMemoryDB();

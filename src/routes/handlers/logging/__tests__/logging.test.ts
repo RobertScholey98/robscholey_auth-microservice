@@ -12,7 +12,7 @@ beforeAll(() => {
 let sessionToken: string;
 
 beforeEach(async () => {
-  db._testReset();
+  await db._testReset();
   _testResetRateLimit();
 
   // Register an app before setup so the owner session captures it in appIds

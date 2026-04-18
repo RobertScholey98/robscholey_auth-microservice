@@ -8,8 +8,8 @@ beforeAll(() => {
   process.env.ALLOWED_ORIGINS = 'http://localhost:3000';
 });
 
-beforeEach(() => {
-  db._testReset();
+beforeEach(async () => {
+  await db._testReset();
 });
 
 describe('GET /api/apps/:slug/meta', () => {

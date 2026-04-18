@@ -12,7 +12,7 @@ beforeAll(() => {
 let ownerToken: string;
 
 beforeEach(async () => {
-  db._testReset();
+  await db._testReset();
   _testResetRateLimit();
 
   // Create owner and get session token
@@ -502,6 +502,15 @@ describe('GET /api/admin/sessions', () => {
   });
 
   it('filters by codeId', async () => {
+    await db.createCode({
+      code: 'ABC',
+      userId: null,
+      appIds: [],
+      passwordHash: null,
+      expiresAt: null,
+      createdAt: new Date(),
+      label: 'Test code',
+    });
     await db.createSession({
       token: 'sess_code1',
       codeId: 'ABC',

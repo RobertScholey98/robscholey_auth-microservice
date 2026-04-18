@@ -28,6 +28,7 @@ RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs hono
 
 COPY --from=deps --chown=hono:nodejs /app ./
 COPY --chown=hono:nodejs robscholey_auth-microservice/src ./robscholey_auth-microservice/src
+COPY --chown=hono:nodejs robscholey_auth-microservice/migrations ./robscholey_auth-microservice/migrations
 COPY --chown=hono:nodejs robscholey_auth-microservice/tsconfig.json ./robscholey_auth-microservice/tsconfig.json
 
 WORKDIR /app/robscholey_auth-microservice

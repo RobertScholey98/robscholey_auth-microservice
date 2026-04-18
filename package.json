@@ -10,17 +10,24 @@
     "lint": "eslint src/ api/",
     "lint:fix": "eslint src/ api/ --fix",
     "format": "prettier --write 'src/**/*.ts' 'api/**/*.ts'",
-    "format:check": "prettier --check 'src/**/*.ts' 'api/**/*.ts'"
+    "format:check": "prettier --check 'src/**/*.ts' 'api/**/*.ts'",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "migrate:create": "node-pg-migrate create"
   },
   "packageManager": "pnpm@10.33.0",
   "dependencies": {
     "@hono/node-server": "^1.19.14",
     "bcryptjs": "^3.0.3",
     "hono": "^4.12.12",
-    "jose": "^6.2.2"
+    "jose": "^6.2.2",
+    "node-pg-migrate": "^7.9.0",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^10.16.0",
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.11.10",
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.2",
     "@vitest/coverage-v8": "^4.1.4",
