@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { SignJWT } from 'jose';
 import app from '@/index';
 import { db } from '@/lib';
 import { _testResetRateLimit } from '@/middleware';
@@ -10,19 +11,21 @@ beforeAll(() => {
 });
 
 let ownerToken: string;
+let ownerId: string;
 
 beforeEach(async () => {
   await db._testReset();
   _testResetRateLimit();
 
-  // Create owner and get session token
+  // Create owner and take the JWT the setup route hands back.
   const res = await app.request('/api/auth/setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: 'rob', password: 'test123' }),
   });
   const body = await res.json();
-  ownerToken = body.sessionToken;
+  ownerToken = body.jwt;
+  ownerId = body.user.id;
 });
 
 function adminReq(method: string, path: string, body?: object) {
@@ -47,7 +50,7 @@ describe('Admin auth middleware', () => {
     expect(res.status).toBe(401);
   });
 
-  it('rejects requests with invalid session token', async () => {
+  it('rejects requests with an unverifiable JWT', async () => {
     const res = await app.request('/api/admin/apps', {
       method: 'GET',
       headers: { Authorization: 'Bearer fake-token' },
@@ -55,36 +58,47 @@ describe('Admin auth middleware', () => {
     expect(res.status).toBe(401);
   });
 
-  it('rejects non-owner sessions', async () => {
-    // Create a code-based session (anonymous user)
-    await db.createCode({
-      code: 'TEST',
-      userId: null,
-      appIds: [],
-      passwordHash: null,
-      expiresAt: null,
-      createdAt: new Date(),
-      label: 'Test',
-    });
-    const codeRes = await app.request('/api/auth/validate-code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'TEST' }),
-    });
-    const { sessionToken } = await codeRes.json();
+  it('rejects non-owner JWTs', async () => {
+    // Forge a validly-signed JWT for a non-owner user type.
+    const anonJwt = await new SignJWT({
+      sub: 'someone-else',
+      name: 'Anon',
+      type: 'anonymous',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SIGNING_SECRET!));
 
     const res = await app.request('/api/admin/apps', {
       method: 'GET',
-      headers: { Authorization: `Bearer ${sessionToken}` },
+      headers: { Authorization: `Bearer ${anonJwt}` },
     });
     expect(res.status).toBe(401);
   });
 
-  it('rejects expired owner session', async () => {
-    // Manually expire the session
-    await db.updateSession(ownerToken, {
-      expiresAt: new Date(Date.now() - 1000),
+  it('rejects expired JWTs', async () => {
+    const nowSecs = Math.floor(Date.now() / 1000);
+    const expiredJwt = await new SignJWT({
+      sub: ownerId,
+      name: 'rob',
+      type: 'owner',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt(nowSecs - 7200)
+      .setExpirationTime(nowSecs - 60)
+      .sign(new TextEncoder().encode(process.env.JWT_SIGNING_SECRET!));
+
+    const res = await app.request('/api/admin/apps', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${expiredJwt}` },
     });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a JWT whose subject user no longer exists', async () => {
+    // Owner JWT from beforeEach, but delete the user from the DB.
+    await db.deleteUser(ownerId);
     const res = await adminReq('GET', '/api/admin/apps');
     expect(res.status).toBe(401);
   });

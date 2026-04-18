@@ -1,11 +1,17 @@
 import type { MiddlewareHandler } from 'hono';
-import { db } from '@/lib';
+import { verifyJWT, db } from '@/lib';
 
 /**
- * Middleware that validates the request is from an authenticated owner.
- * Reads `Authorization: Bearer <session-token>` from the header, verifies the session
- * exists and belongs to an owner user, and sets the user on the Hono context.
- * Returns 401 for all failure cases with a generic error message.
+ * Middleware that protects admin routes by verifying a short-lived JWT.
+ *
+ * Reads `Authorization: Bearer <jwt>` from the request header, verifies the
+ * signature and expiry against `JWT_SIGNING_SECRET`, and requires the encoded
+ * user type to be `owner`. The decoded user is then reloaded from the DB for
+ * freshness (catches the rare case where the owner role changed mid-session)
+ * and set on the Hono context as `user`.
+ *
+ * JWTs are issued by `/auth/login` and refreshed via `/auth/session`; the
+ * opaque session token is never sent on the wire to admin routes.
  */
 export const adminAuth: MiddlewareHandler = async (c, next) => {
   const authHeader = c.req.header('authorization');
@@ -14,21 +20,16 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
   }
 
   const token = authHeader.slice(7);
-  const session = await db.getSession(token);
-  if (!session) {
-    return c.json({ error: 'Invalid session' }, 401);
-  }
-
-  if (session.expiresAt < new Date()) {
-    await db.deleteSession(token);
-    return c.json({ error: 'Session expired' }, 401);
-  }
-
-  if (!session.userId) {
+  const payload = await verifyJWT(token);
+  if (!payload) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const user = await db.getUser(session.userId);
+  if (payload.type !== 'owner') {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const user = await db.getUser(payload.sub);
   if (!user || user.type !== 'owner') {
     return c.json({ error: 'Unauthorized' }, 401);
   }
