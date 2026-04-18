@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/dev.ts",
+    "start": "tsx src/dev.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/ api/",
