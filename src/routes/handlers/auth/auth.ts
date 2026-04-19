@@ -5,14 +5,21 @@ import type { App, User } from '@/types';
 
 /**
  * Returns the apps visible to the shell for a given set of session appIds —
- * intersected with active=true AND present in appsConfig.json. Orphan rows
- * and inactive apps are never shown to end users.
+ * intersected with active=true AND present in appsConfig.json. Orphan rows,
+ * inactive apps, and `ownerOnly` apps (for non-owners) are filtered out.
  */
-async function visibleAppsFor(appIds: string[]): Promise<App[]> {
+async function visibleAppsFor(appIds: string[], userType: User['type'] | null): Promise<App[]> {
   const [all, config] = await Promise.all([db.getApps(), loadAppsConfig()]);
-  const configIds = new Set(config.map((a) => a.id));
+  const configById = new Map(config.map((a) => [a.id, a]));
   const allowed = new Set(appIds);
-  return all.filter((a) => a.active && configIds.has(a.id) && allowed.has(a.id));
+  return all.filter((a) => {
+    const cfg = configById.get(a.id);
+    if (!cfg) return false;
+    if (!a.active) return false;
+    if (!allowed.has(a.id)) return false;
+    if (cfg.ownerOnly && userType !== 'owner') return false;
+    return true;
+  });
 }
 
 /**
@@ -43,7 +50,7 @@ async function createAuthResponse(user: User, codeId: string | null, appIds: str
     type: user.type,
   });
 
-  const apps = await visibleAppsFor(appIds);
+  const apps = await visibleAppsFor(appIds, user.type);
 
   return {
     sessionToken: token,
@@ -174,7 +181,7 @@ export async function getSession(c: Context) {
     appIds = (await db.getApps()).map((a) => a.id);
   }
 
-  const apps = await visibleAppsFor(appIds);
+  const apps = await visibleAppsFor(appIds, user?.type ?? null);
 
   const jwt = await signJWT({
     sub: user?.id ?? 'anonymous',

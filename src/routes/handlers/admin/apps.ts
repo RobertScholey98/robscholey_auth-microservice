@@ -2,11 +2,23 @@ import type { Context } from 'hono';
 import { db } from '@/lib';
 import { loadAppsConfig } from '@/lib/appsConfig';
 
-/** Lists all registered apps, annotated with `isOrphan` (true if missing from appsConfig.json). */
+/**
+ * Lists all registered apps, annotated with `isOrphan` (true if missing from
+ * appsConfig.json) and `ownerOnly` (mirrored from config for non-orphans).
+ */
 export async function listApps(c: Context) {
   const [apps, config] = await Promise.all([db.getApps(), loadAppsConfig()]);
-  const configIds = new Set(config.map((a) => a.id));
-  return c.json(apps.map((a) => ({ ...a, isOrphan: !configIds.has(a.id) })));
+  const configById = new Map(config.map((a) => [a.id, a]));
+  return c.json(
+    apps.map((a) => {
+      const cfg = configById.get(a.id);
+      return {
+        ...a,
+        isOrphan: !cfg,
+        ownerOnly: cfg?.ownerOnly === true,
+      };
+    }),
+  );
 }
 
 /** Toggles the `active` flag on an app. Body: `{ active: boolean }`. */

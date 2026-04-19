@@ -97,4 +97,64 @@ describe('loadAppsConfig', () => {
     });
     await expect(loadAppsConfig()).rejects.toThrow(/id/);
   });
+
+  it('preserves ownerOnly when true', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'admin',
+          name: 'Admin',
+          url: 'http://localhost:3005',
+          iconUrl: '',
+          description: '',
+          ownerOnly: true,
+        },
+      ],
+    });
+
+    const [app] = await loadAppsConfig();
+    expect(app.ownerOnly).toBe(true);
+  });
+
+  it('omits ownerOnly when absent or false', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'a',
+          name: 'A',
+          url: '',
+          iconUrl: '',
+          description: '',
+        },
+        {
+          id: 'b',
+          name: 'B',
+          url: '',
+          iconUrl: '',
+          description: '',
+          ownerOnly: false,
+        },
+      ],
+    });
+
+    const [a, b] = await loadAppsConfig();
+    expect(a.ownerOnly).toBeUndefined();
+    expect(b.ownerOnly).toBeUndefined();
+  });
+
+  it('throws when ownerOnly is not a boolean', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'x',
+          name: 'X',
+          url: '',
+          iconUrl: '',
+          description: '',
+          ownerOnly: 'yes',
+        },
+      ],
+    });
+    await expect(loadAppsConfig()).rejects.toThrow(/ownerOnly/);
+  });
 });

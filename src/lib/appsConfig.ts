@@ -7,6 +7,8 @@ export interface AppConfig {
   url: string;
   iconUrl: string;
   description: string;
+  /** When true, the app is hidden from non-owner users in shell-facing responses. */
+  ownerOnly?: boolean;
 }
 
 let cached: AppConfig[] | null = null;
@@ -29,12 +31,16 @@ function validate(data: unknown): AppConfig[] {
         throw new Error(`appsConfig.json: apps[${i}].${field} must be a string`);
       }
     }
+    if (e.ownerOnly !== undefined && typeof e.ownerOnly !== 'boolean') {
+      throw new Error(`appsConfig.json: apps[${i}].ownerOnly must be a boolean when set`);
+    }
     return {
       id: e.id as string,
       name: e.name as string,
       url: e.url as string,
       iconUrl: e.iconUrl as string,
       description: e.description as string,
+      ...(e.ownerOnly === true ? { ownerOnly: true } : {}),
     };
   });
 }
