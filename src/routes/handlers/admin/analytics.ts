@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { db } from '@/lib';
+import { accessLogToWire } from '@/lib/wire';
 
 /**
  * Returns access log entries with optional filtering and aggregated stats.
@@ -23,10 +24,12 @@ export async function getAnalytics(c: Context) {
     appId: appId || undefined,
   });
 
-  // Single pass: filter by date range and aggregate stats simultaneously
+  // Single pass: filter by date range and aggregate stats simultaneously.
+  // Filtering happens against the domain `Date` object before the wire
+  // mapper serialises it, so comparisons stay on the same underlying type.
   const uniqueSessions = new Set<string>();
   const appBreakdown: Record<string, number> = {};
-  const logs = allLogs.filter((log) => {
+  const filtered = allLogs.filter((log) => {
     if (fromDate && log.accessedAt < fromDate) return false;
     if (toDate && log.accessedAt > toDate) return false;
     uniqueSessions.add(log.sessionToken);
@@ -35,9 +38,9 @@ export async function getAnalytics(c: Context) {
   });
 
   return c.json({
-    logs,
+    logs: filtered.map(accessLogToWire),
     stats: {
-      totalAccesses: logs.length,
+      totalAccesses: filtered.length,
       uniqueSessions: uniqueSessions.size,
       appBreakdown,
     },

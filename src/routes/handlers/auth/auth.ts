@@ -1,7 +1,9 @@
 import type { Context } from 'hono';
+import type { AuthResponse, SessionResponse } from '@robscholey/contracts';
 import { db, hashPassword, comparePassword, createSessionToken, signJWT } from '@/lib';
 import { loadAppsConfig } from '@/lib/appsConfig';
 import type { App, User } from '@/types';
+import { appToWire } from '@/lib/wire';
 
 /**
  * Returns the apps visible to the shell for a given set of session appIds —
@@ -28,11 +30,17 @@ async function visibleAppsFor(appIds: string[], userType: User['type'] | null): 
  * @param user - The authenticated user.
  * @param codeId - The access code used to authenticate, or `null` for owner login.
  * @param appIds - The app IDs this session grants access to.
- * @returns The response payload containing sessionToken, jwt, user, and apps.
+ * @returns The wire-shaped auth response containing sessionToken, jwt, user, and apps.
  */
-async function createAuthResponse(user: User, codeId: string | null, appIds: string[]) {
+async function createAuthResponse(
+  user: User,
+  codeId: string | null,
+  appIds: string[],
+): Promise<AuthResponse> {
   const token = createSessionToken();
   const now = new Date();
+  const SESSION_TTL_DAYS = 90;
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
   await db.createSession({
     token,
@@ -41,7 +49,7 @@ async function createAuthResponse(user: User, codeId: string | null, appIds: str
     appIds,
     createdAt: now,
     lastActiveAt: now,
-    expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
+    expiresAt: new Date(now.getTime() + SESSION_TTL_DAYS * MS_PER_DAY),
   });
 
   const jwt = await signJWT({
@@ -55,8 +63,13 @@ async function createAuthResponse(user: User, codeId: string | null, appIds: str
   return {
     sessionToken: token,
     jwt,
-    user: { id: user.id, name: user.name, type: user.type },
-    apps,
+    user: {
+      id: user.id,
+      name: user.name,
+      type: user.type,
+      createdAt: user.createdAt.toISOString(),
+    },
+    apps: apps.map(appToWire),
   };
 }
 
@@ -189,12 +202,21 @@ export async function getSession(c: Context) {
     type: user?.type ?? 'anonymous',
   });
 
-  return c.json({
+  const response: SessionResponse = {
     sessionToken: token,
     jwt,
-    user: user ? { id: user.id, name: user.name, type: user.type } : null,
-    apps,
-  });
+    user: user
+      ? {
+          id: user.id,
+          name: user.name,
+          type: user.type,
+          createdAt: user.createdAt.toISOString(),
+        }
+      : null,
+    apps: apps.map(appToWire),
+  };
+
+  return c.json(response);
 }
 
 /** Invalidates a session by deleting it. Idempotent — succeeds even if the session doesn't exist. */

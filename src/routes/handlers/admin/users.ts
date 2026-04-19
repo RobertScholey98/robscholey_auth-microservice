@@ -1,16 +1,12 @@
 import type { Context } from 'hono';
 import { db } from '@/lib';
 import type { User } from '@/types';
-
-/** Strips passwordHash from a user object before sending in a response. */
-function sanitizeUser({ passwordHash: _passwordHash, ...rest }: User) {
-  return rest;
-}
+import { userToWire } from '@/lib/wire';
 
 /** Lists all users. Strips sensitive fields (passwordHash) from the response. */
 export async function listUsers(c: Context) {
   const users = await db.getUsers();
-  return c.json(users.map(sanitizeUser));
+  return c.json(users.map(userToWire));
 }
 
 /** Creates a named user. Requires `name`. */
@@ -27,7 +23,7 @@ export async function createUser(c: Context) {
     createdAt: new Date(),
   };
 
-  return c.json(sanitizeUser(await db.createUser(user)), 201);
+  return c.json(userToWire(await db.createUser(user)), 201);
 }
 
 /** Partially updates a user by ID. Only `name` can be modified. Returns 404 if not found. */
@@ -43,7 +39,7 @@ export async function updateUser(c: Context) {
     return c.json({ error: 'User not found' }, 404);
   }
 
-  return c.json(sanitizeUser(updated));
+  return c.json(userToWire(updated));
 }
 
 /** Deletes a user by ID. Cascades to all their access codes and associated sessions. */

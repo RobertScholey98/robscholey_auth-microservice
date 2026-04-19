@@ -1,15 +1,18 @@
 import type { Context } from 'hono';
 import { db } from '@/lib';
+import { sessionToWire } from '@/lib/wire';
 
 /** Lists sessions, optionally filtered by `?codeId=`. */
 export async function listSessions(c: Context) {
   const codeId = c.req.query('codeId');
 
   if (codeId) {
-    return c.json(await db.getSessionsByCode(codeId));
+    const sessions = await db.getSessionsByCode(codeId);
+    return c.json(sessions.map(sessionToWire));
   }
 
-  return c.json(await db.getSessions());
+  const sessions = await db.getSessions();
+  return c.json(sessions.map(sessionToWire));
 }
 
 /** Deletes a session by token. Returns 404 if not found. */

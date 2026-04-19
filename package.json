@@ -18,6 +18,7 @@
   "packageManager": "pnpm@10.33.0",
   "dependencies": {
     "@hono/node-server": "^1.19.14",
+    "@robscholey/contracts": "workspace:*",
     "bcryptjs": "^3.0.3",
     "hono": "^4.12.12",
     "jose": "^6.2.2",

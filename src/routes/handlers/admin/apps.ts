@@ -1,10 +1,13 @@
 import type { Context } from 'hono';
 import { db } from '@/lib';
 import { loadAppsConfig } from '@/lib/appsConfig';
+import { appToWire } from '@/lib/wire';
 
 /**
  * Lists all registered apps, annotated with `isOrphan` (true if missing from
  * appsConfig.json) and `ownerOnly` (mirrored from config for non-orphans).
+ * Admin-only — regular auth responses filter orphan/owner-only apps out
+ * entirely, so the annotations are not part of the shared wire `App`.
  */
 export async function listApps(c: Context) {
   const [apps, config] = await Promise.all([db.getApps(), loadAppsConfig()]);
@@ -13,7 +16,7 @@ export async function listApps(c: Context) {
     apps.map((a) => {
       const cfg = configById.get(a.id);
       return {
-        ...a,
+        ...appToWire(a),
         isOrphan: !cfg,
         ownerOnly: cfg?.ownerOnly === true,
       };
@@ -43,7 +46,7 @@ export async function patchAppActive(c: Context) {
     return c.json({ error: 'App not found' }, 404);
   }
 
-  return c.json(updated);
+  return c.json(appToWire(updated));
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { db, hashPassword } from '@/lib';
 import type { AccessCode } from '@/types';
+import { accessCodeToWire } from '@/lib/wire';
 
 /**
  * Generates a short alphanumeric access code string.
@@ -18,15 +19,10 @@ function generateCodeString(): string {
   return code;
 }
 
-/** Strips passwordHash from a code object, replacing it with a hasPassword boolean. */
-function sanitizeCode({ passwordHash, ...rest }: AccessCode) {
-  return { ...rest, hasPassword: passwordHash !== null };
-}
-
 /** Lists all access codes. Strips sensitive fields (passwordHash) from the response. */
 export async function listCodes(c: Context) {
   const codes = await db.getCodes();
-  return c.json(codes.map(sanitizeCode));
+  return c.json(codes.map(accessCodeToWire));
 }
 
 /**
@@ -99,7 +95,7 @@ export async function createCode(c: Context) {
     label: body.label ?? '',
   };
 
-  return c.json(sanitizeCode(await db.createCode(accessCode)), 201);
+  return c.json(accessCodeToWire(await db.createCode(accessCode)), 201);
 }
 
 /** Partially updates an access code. Only `appIds`, `label`, and `expiresAt` can be modified. */
@@ -118,7 +114,7 @@ export async function updateCode(c: Context) {
     return c.json({ error: 'Code not found' }, 404);
   }
 
-  return c.json(sanitizeCode(updated));
+  return c.json(accessCodeToWire(updated));
 }
 
 /** Revokes an access code. Cascades to all sessions created from this code. */

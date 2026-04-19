@@ -42,6 +42,7 @@ describe('POST /api/auth/setup', () => {
       id: expect.any(String),
       name: 'rob',
       type: 'owner',
+      createdAt: expect.any(String),
     });
     expect(body.apps).toEqual([]);
   });
