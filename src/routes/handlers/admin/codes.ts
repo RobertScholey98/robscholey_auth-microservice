@@ -31,14 +31,22 @@ export async function listCodes(c: Context) {
 
 /**
  * Creates a new access code. Requires `appIds` (non-empty).
- * Auto-generates the code string if not provided.
- * Hashes the password if provided (making it a private code).
- * Converts `expiresIn` (seconds) to an absolute `expiresAt` date.
+ *
+ * The `code` string is optional — auto-generated when blank, used as-is when
+ * provided (409 if a code with that string already exists).
+ *
+ * Exactly one of `userId` or `userName` can be provided to attach the code to
+ * a user. `userId` targets an existing user; `userName` creates a new named
+ * user on the fly. If both are provided, the request is rejected with 400.
+ *
+ * Password, if provided, makes the code private and is hashed.
+ * `expiresIn` (seconds) is converted to an absolute `expiresAt` date.
  */
 export async function createCode(c: Context) {
   const body = await c.req.json<{
     code?: string;
     userId?: string;
+    userName?: string;
     appIds: string[];
     password?: string;
     expiresIn?: number;
@@ -49,14 +57,32 @@ export async function createCode(c: Context) {
     return c.json({ error: 'appIds is required and must not be empty' }, 400);
   }
 
+  if (body.userId && body.userName) {
+    return c.json({ error: 'Provide either userId or userName, not both' }, 400);
+  }
+
+  let userId: string | null = null;
   if (body.userId) {
     const user = await db.getUser(body.userId);
     if (!user) {
       return c.json({ error: 'User not found' }, 404);
     }
+    userId = user.id;
+  } else if (body.userName) {
+    const trimmed = body.userName.trim();
+    if (!trimmed) {
+      return c.json({ error: 'userName cannot be blank' }, 400);
+    }
+    const created = await db.createUser({
+      id: crypto.randomUUID(),
+      name: trimmed,
+      type: 'named',
+      createdAt: new Date(),
+    });
+    userId = created.id;
   }
 
-  const codeString = body.code || generateCodeString();
+  const codeString = body.code?.trim() || generateCodeString();
 
   const existing = await db.getCode(codeString);
   if (existing) {
@@ -65,7 +91,7 @@ export async function createCode(c: Context) {
 
   const accessCode: AccessCode = {
     code: codeString,
-    userId: body.userId ?? null,
+    userId,
     appIds: body.appIds,
     passwordHash: body.password ? await hashPassword(body.password) : null,
     expiresAt: body.expiresIn ? new Date(Date.now() + body.expiresIn * 1000) : null,
