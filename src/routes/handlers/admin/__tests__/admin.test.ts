@@ -105,114 +105,114 @@ describe('Admin auth middleware', () => {
 });
 
 describe('GET /api/admin/apps', () => {
-  it('returns empty list initially', async () => {
+  it('returns empty list when DB has no apps', async () => {
     const res = await adminReq('GET', '/api/admin/apps');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([]);
   });
 
-  it('returns all apps', async () => {
+  it('annotates apps with isOrphan based on appsConfig.json', async () => {
     await db.createApp({
-      id: 'portfolio',
-      name: 'Portfolio',
-      url: 'https://portfolio.vercel.app',
+      id: 'in-config',
+      name: 'In Config',
+      url: 'http://localhost:3999',
       iconUrl: '',
-      description: '',
+      description: 'Fixture app present in appsConfig.json',
       active: true,
     });
+    await db.createApp({
+      id: 'legacy',
+      name: 'Legacy',
+      url: 'http://localhost:9999',
+      iconUrl: '',
+      description: '',
+      active: false,
+    });
+
     const res = await adminReq('GET', '/api/admin/apps');
-    const apps = await res.json();
-    expect(apps).toHaveLength(1);
-    expect(apps[0].id).toBe('portfolio');
+    const apps = (await res.json()) as Array<{ id: string; isOrphan: boolean }>;
+    const byId = new Map(apps.map((a) => [a.id, a]));
+
+    expect(byId.get('in-config')!.isOrphan).toBe(false);
+    expect(byId.get('legacy')!.isOrphan).toBe(true);
   });
 });
 
-describe('POST /api/admin/apps', () => {
-  it('creates an app', async () => {
-    const res = await adminReq('POST', '/api/admin/apps', {
-      id: 'portfolio',
-      name: 'Portfolio',
-      url: 'https://portfolio.vercel.app',
+describe('PATCH /api/admin/apps/:id/active', () => {
+  beforeEach(async () => {
+    await db.createApp({
+      id: 'in-config',
+      name: 'In Config',
+      url: 'http://localhost:3999',
+      iconUrl: '',
+      description: '',
+      active: false,
     });
-    expect(res.status).toBe(201);
-
-    const body = await res.json();
-    expect(body.id).toBe('portfolio');
-    expect(body.active).toBe(true);
-    expect(body.iconUrl).toBe('');
-    expect(body.description).toBe('');
   });
 
-  it('rejects missing required fields', async () => {
-    const res = await adminReq('POST', '/api/admin/apps', {
-      id: 'portfolio',
+  it('toggles active to true', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
+      active: true,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.active).toBe(true);
+  });
+
+  it('toggles active to false', async () => {
+    await db.updateApp('in-config', { active: true });
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
+      active: false,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.active).toBe(false);
+  });
+
+  it('rejects non-boolean body', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
+      active: 'yes',
     });
     expect(res.status).toBe(400);
   });
 
-  it('rejects duplicate app id', async () => {
-    await adminReq('POST', '/api/admin/apps', {
-      id: 'portfolio',
-      name: 'Portfolio',
-      url: 'https://portfolio.vercel.app',
-    });
-    const res = await adminReq('POST', '/api/admin/apps', {
-      id: 'portfolio',
-      name: 'Portfolio 2',
-      url: 'https://other.vercel.app',
-    });
-    expect(res.status).toBe(409);
-  });
-});
-
-describe('PUT /api/admin/apps/:id', () => {
-  beforeEach(async () => {
-    await db.createApp({
-      id: 'portfolio',
-      name: 'Portfolio',
-      url: 'https://portfolio.vercel.app',
-      iconUrl: '',
-      description: '',
+  it('returns 404 for missing app', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/nope/active', {
       active: true,
-    });
-  });
-
-  it('updates an app', async () => {
-    const res = await adminReq('PUT', '/api/admin/apps/portfolio', {
-      name: 'My Portfolio',
-      description: 'Updated description',
-    });
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.name).toBe('My Portfolio');
-    expect(body.description).toBe('Updated description');
-    expect(body.id).toBe('portfolio');
-  });
-
-  it('returns 404 for nonexistent app', async () => {
-    const res = await adminReq('PUT', '/api/admin/apps/nope', {
-      name: 'x',
     });
     expect(res.status).toBe(404);
   });
 });
 
 describe('DELETE /api/admin/apps/:id', () => {
-  it('deletes an app', async () => {
+  it('deletes an orphan app (not in appsConfig.json)', async () => {
     await db.createApp({
-      id: 'portfolio',
-      name: 'Portfolio',
-      url: 'https://portfolio.vercel.app',
+      id: 'legacy',
+      name: 'Legacy',
+      url: 'http://localhost:9999',
       iconUrl: '',
       description: '',
-      active: true,
+      active: false,
     });
-    const res = await adminReq('DELETE', '/api/admin/apps/portfolio');
+    const res = await adminReq('DELETE', '/api/admin/apps/legacy');
     expect(res.status).toBe(200);
 
     const listRes = await adminReq('GET', '/api/admin/apps');
     expect(await listRes.json()).toEqual([]);
+  });
+
+  it('refuses to delete apps still present in appsConfig.json', async () => {
+    await db.createApp({
+      id: 'in-config',
+      name: 'In Config',
+      url: 'http://localhost:3999',
+      iconUrl: '',
+      description: '',
+      active: true,
+    });
+    const res = await adminReq('DELETE', '/api/admin/apps/in-config');
+    expect(res.status).toBe(400);
+    expect(await db.getApp('in-config')).not.toBeNull();
   });
 
   it('returns 404 for nonexistent app', async () => {

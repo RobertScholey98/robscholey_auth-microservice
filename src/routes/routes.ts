@@ -4,8 +4,7 @@ import { rateLimit, adminAuth } from '@/middleware';
 import { setup, login, validateCode, getSession, logout } from './handlers/auth';
 import {
   listApps,
-  createApp,
-  updateApp,
+  patchAppActive,
   deleteApp,
   listUsers,
   createUser,
@@ -47,10 +46,9 @@ export function registerRoutes(app: Hono) {
   //  Middleware
   app.use('/admin/*', adminAuth);
 
-  //  Apps
+  //  Apps (structural CRUD lives in appsConfig.json; runtime state is active + orphan removal)
   app.get('/admin/apps', listApps);
-  app.post('/admin/apps', createApp);
-  app.put('/admin/apps/:id', updateApp);
+  app.patch('/admin/apps/:id/active', patchAppActive);
   app.delete('/admin/apps/:id', deleteApp);
 
   //  Users

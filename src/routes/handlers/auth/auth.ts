@@ -1,6 +1,19 @@
 import type { Context } from 'hono';
 import { db, hashPassword, comparePassword, createSessionToken, signJWT } from '@/lib';
-import type { User } from '@/types';
+import { loadAppsConfig } from '@/lib/appsConfig';
+import type { App, User } from '@/types';
+
+/**
+ * Returns the apps visible to the shell for a given set of session appIds —
+ * intersected with active=true AND present in appsConfig.json. Orphan rows
+ * and inactive apps are never shown to end users.
+ */
+async function visibleAppsFor(appIds: string[]): Promise<App[]> {
+  const [all, config] = await Promise.all([db.getApps(), loadAppsConfig()]);
+  const configIds = new Set(config.map((a) => a.id));
+  const allowed = new Set(appIds);
+  return all.filter((a) => a.active && configIds.has(a.id) && allowed.has(a.id));
+}
 
 /**
  * Creates a session, signs a JWT, and builds the standard auth response object.
@@ -30,7 +43,7 @@ async function createAuthResponse(user: User, codeId: string | null, appIds: str
     type: user.type,
   });
 
-  const apps = (await db.getApps()).filter((a) => appIds.includes(a.id));
+  const apps = await visibleAppsFor(appIds);
 
   return {
     sessionToken: token,
@@ -161,7 +174,7 @@ export async function getSession(c: Context) {
     appIds = (await db.getApps()).map((a) => a.id);
   }
 
-  const apps = (await db.getApps()).filter((a) => appIds.includes(a.id));
+  const apps = await visibleAppsFor(appIds);
 
   const jwt = await signJWT({
     sub: user?.id ?? 'anonymous',

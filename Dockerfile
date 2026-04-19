@@ -30,6 +30,9 @@ COPY --from=deps --chown=hono:nodejs /app ./
 COPY --chown=hono:nodejs robscholey_auth-microservice/src ./robscholey_auth-microservice/src
 COPY --chown=hono:nodejs robscholey_auth-microservice/migrations ./robscholey_auth-microservice/migrations
 COPY --chown=hono:nodejs robscholey_auth-microservice/tsconfig.json ./robscholey_auth-microservice/tsconfig.json
+COPY --chown=hono:nodejs appsConfig.json ./appsConfig.json
+
+ENV APPS_CONFIG_PATH=/app/appsConfig.json
 
 WORKDIR /app/robscholey_auth-microservice
 USER hono

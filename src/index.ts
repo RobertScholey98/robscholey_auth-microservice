@@ -11,7 +11,7 @@ app.use(
       const allowed = (process.env.ALLOWED_ORIGINS || '').split(',');
       return allowed.includes(origin) ? origin : undefined;
     },
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
   }),
 );

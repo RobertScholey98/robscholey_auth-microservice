@@ -1,55 +1,23 @@
 import type { Context } from 'hono';
 import { db } from '@/lib';
-import type { App } from '@/types';
+import { loadAppsConfig } from '@/lib/appsConfig';
 
-/** Lists all registered apps. */
+/** Lists all registered apps, annotated with `isOrphan` (true if missing from appsConfig.json). */
 export async function listApps(c: Context) {
-  return c.json(await db.getApps());
+  const [apps, config] = await Promise.all([db.getApps(), loadAppsConfig()]);
+  const configIds = new Set(config.map((a) => a.id));
+  return c.json(apps.map((a) => ({ ...a, isOrphan: !configIds.has(a.id) })));
 }
 
-/** Creates a new app. Requires `id`, `name`, and `url`. Defaults `active` to `true`. */
-export async function createApp(c: Context) {
-  const body = await c.req.json<Omit<App, 'active'> & { active?: boolean }>();
-  if (!body.id || !body.name || !body.url) {
-    return c.json({ error: 'id, name, and url are required' }, 400);
-  }
-
-  const existing = await db.getApp(body.id);
-  if (existing) {
-    return c.json({ error: 'App with this id already exists' }, 409);
-  }
-
-  const app: App = {
-    id: body.id,
-    name: body.name,
-    url: body.url,
-    iconUrl: body.iconUrl || '',
-    description: body.description || '',
-    active: body.active ?? true,
-  };
-
-  return c.json(await db.createApp(app), 201);
-}
-
-/** Partially updates an app by ID. Only `name`, `url`, `iconUrl`, `description`, and `active` can be modified. */
-export async function updateApp(c: Context) {
+/** Toggles the `active` flag on an app. Body: `{ active: boolean }`. */
+export async function patchAppActive(c: Context) {
   const id = c.req.param('id')!;
-  const body = await c.req.json<{
-    name?: string;
-    url?: string;
-    iconUrl?: string;
-    description?: string;
-    active?: boolean;
-  }>();
+  const body = await c.req.json<{ active?: unknown }>();
+  if (typeof body.active !== 'boolean') {
+    return c.json({ error: 'active must be a boolean' }, 400);
+  }
 
-  const data: Omit<Partial<App>, 'id'> = {};
-  if (body.name !== undefined) data.name = body.name;
-  if (body.url !== undefined) data.url = body.url;
-  if (body.iconUrl !== undefined) data.iconUrl = body.iconUrl;
-  if (body.description !== undefined) data.description = body.description;
-  if (body.active !== undefined) data.active = body.active;
-
-  const updated = await db.updateApp(id, data);
+  const updated = await db.updateApp(id, { active: body.active });
   if (!updated) {
     return c.json({ error: 'App not found' }, 404);
   }
@@ -57,9 +25,22 @@ export async function updateApp(c: Context) {
   return c.json(updated);
 }
 
-/** Deletes an app by ID. Returns 404 if not found. */
+/**
+ * Deletes an app by ID. Gated to orphan apps (those not present in `appsConfig.json`).
+ * Non-orphans must be removed from the config file first — prevents accidental loss
+ * of an app that's still the committed source of truth.
+ */
 export async function deleteApp(c: Context) {
   const id = c.req.param('id')!;
+
+  const config = await loadAppsConfig();
+  if (config.some((a) => a.id === id)) {
+    return c.json(
+      { error: 'Remove this app from appsConfig.json before deleting it from the database' },
+      400,
+    );
+  }
+
   const deleted = await db.deleteApp(id);
   if (!deleted) {
     return c.json({ error: 'App not found' }, 404);

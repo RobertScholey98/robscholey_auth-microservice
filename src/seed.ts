@@ -1,114 +1,60 @@
-import { db } from '@/lib';
-import { hashPassword, createSessionToken } from '@/lib';
+import type { DB } from '@/lib';
+import { hashPassword } from '@/lib';
 
 /**
- * Seeds the in-memory database with test data for local development.
- * Creates an owner account, sample apps, named users, and access codes.
- * Only runs when the DB is empty (no existing owner).
+ * Seeds dev-only scaffolding (named test user + public/private access codes) so
+ * local development has something to poke at. Gated behind `NODE_ENV !== 'production'`
+ * so Docker prod images skip it entirely. Idempotent — skips if a non-owner user
+ * already exists, which is the proxy for "has already been seeded".
+ *
+ * The owner user and the apps list are NOT seeded here — they're handled by
+ * {@link syncOwner} and {@link syncApps} on every boot, including prod.
  */
-export async function seed(): Promise<void> {
-  const existingUsers = await db.getUsers();
-  if (existingUsers.length > 0) {
-    console.log('  Database already seeded, skipping');
-    return;
-  }
+export async function seed(db: DB): Promise<void> {
+  if (process.env.NODE_ENV === 'production') return;
 
-  console.log('  Seeding dev database...');
+  const users = await db.getUsers();
+  const hasNonOwner = users.some((u) => u.type !== 'owner');
+  if (hasNonOwner) return;
 
-  // Owner account
-  const owner = await db.createUser({
-    id: crypto.randomUUID(),
-    name: 'rob',
-    type: 'owner',
-    username: 'rob',
-    passwordHash: await hashPassword('test123'),
-    createdAt: new Date(),
-  });
-  console.log('  ✓ Owner: rob / test123');
+  console.log('  Seeding dev scaffolding...');
 
-  // Sample apps
-  const apps = [
-    {
-      id: 'portfolio',
-      name: 'Portfolio',
-      url: 'http://localhost:3002',
-      iconUrl: '',
-      description: 'Personal portfolio and projects',
-      active: true,
-    },
-    {
-      id: 'admin',
-      name: 'Admin Panel',
-      url: 'http://localhost:3005',
-      iconUrl: '',
-      description: 'Platform administration',
-      active: true,
-    },
-    {
-      id: 'demo',
-      name: 'Demo App',
-      url: 'http://localhost:3003',
-      iconUrl: '',
-      description: 'A demo sub-application',
-      active: true,
-    },
-  ];
-
-  for (const app of apps) {
-    await db.createApp(app);
-  }
-  console.log(`  ✓ ${apps.length} apps registered (portfolio, admin, demo)`);
-
-  // Named user
   const sarah = await db.createUser({
     id: crypto.randomUUID(),
     name: 'Sarah',
     type: 'named',
     createdAt: new Date(),
   });
-  console.log('  ✓ Named user: Sarah');
 
-  // Public access code — all apps, no password
   await db.createCode({
     code: 'TEST',
     userId: null,
-    appIds: ['portfolio', 'demo'],
+    appIds: ['template-child-nextjs'],
     passwordHash: null,
     expiresAt: null,
     createdAt: new Date(),
     label: 'Dev test code (public)',
   });
-  console.log('  ✓ Public code: TEST → portfolio, demo');
 
-  // Private access code — with password
   await db.createCode({
     code: 'SARAH',
     userId: sarah.id,
-    appIds: ['portfolio', 'demo'],
+    appIds: ['template-child-nextjs'],
     passwordHash: await hashPassword('pass123'),
     expiresAt: null,
     createdAt: new Date(),
     label: "Sarah's access (private)",
   });
-  console.log('  ✓ Private code: SARAH / pass123 → portfolio, demo');
 
-  // Custom company code
   await db.createCode({
     code: 'XYZ',
     userId: null,
-    appIds: ['portfolio'],
+    appIds: ['template-child-nextjs'],
     passwordHash: null,
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     createdAt: new Date(),
     label: 'XYZ Corp - test code',
   });
-  console.log('  ✓ Public code: XYZ → portfolio (expires in 30 days)');
 
-  console.log('  Seed complete!\n');
-  console.log('  Dev credentials:');
-  console.log('    Owner login: rob / test123');
-  console.log('    Public code: TEST (portfolio + demo)');
-  console.log('    Private code: SARAH / pass123 (portfolio + demo)');
-  console.log('    Company code: XYZ (portfolio only)');
-  console.log('');
+  console.log('  ✓ Dev scaffolding seeded (Sarah + TEST/SARAH/XYZ codes)');
 }
