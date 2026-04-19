@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
-import { db } from '@/lib';
+import { createUserSchema, updateUserSchema, ErrorCode } from '@robscholey/contracts';
+import { db, NotFoundError } from '@/lib';
 import type { User } from '@/types';
 import { userToWire } from '@/lib/wire';
 
@@ -11,10 +12,7 @@ export async function listUsers(c: Context) {
 
 /** Creates a named user. Requires `name`. */
 export async function createUser(c: Context) {
-  const body = await c.req.json<{ name: string }>();
-  if (!body.name) {
-    return c.json({ error: 'name is required' }, 400);
-  }
+  const body = createUserSchema.parse(await c.req.json());
 
   const user: User = {
     id: crypto.randomUUID(),
@@ -29,14 +27,14 @@ export async function createUser(c: Context) {
 /** Partially updates a user by ID. Only `name` can be modified. Returns 404 if not found. */
 export async function updateUser(c: Context) {
   const id = c.req.param('id')!;
-  const body = await c.req.json<{ name?: string }>();
+  const body = updateUserSchema.parse(await c.req.json());
 
   const data: Omit<Partial<User>, 'id'> = {};
   if (body.name !== undefined) data.name = body.name;
 
   const updated = await db.updateUser(id, data);
   if (!updated) {
-    return c.json({ error: 'User not found' }, 404);
+    throw new NotFoundError(ErrorCode.AdminUserNotFound, 'User not found');
   }
 
   return c.json(userToWire(updated));
@@ -48,7 +46,7 @@ export async function deleteUser(c: Context) {
 
   const user = await db.getUser(id);
   if (!user) {
-    return c.json({ error: 'User not found' }, 404);
+    throw new NotFoundError(ErrorCode.AdminUserNotFound, 'User not found');
   }
 
   // Delete sessions directly linked to this user (e.g. owner login sessions with codeId: null)

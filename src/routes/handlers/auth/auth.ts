@@ -1,9 +1,41 @@
 import type { Context } from 'hono';
+import {
+  setupSchema,
+  loginSchema,
+  validateCodeSchema,
+  logoutSchema,
+  getSessionQuerySchema,
+  ErrorCode,
+} from '@robscholey/contracts';
 import type { AuthResponse, SessionResponse } from '@robscholey/contracts';
-import { db, hashPassword, comparePassword, createSessionToken, signJWT } from '@/lib';
+import {
+  db,
+  hashPassword,
+  comparePassword,
+  createSessionToken,
+  signJWT,
+  ForbiddenError,
+  UnauthorizedError,
+} from '@/lib';
 import { loadAppsConfig } from '@/lib/appsConfig';
 import type { App, User } from '@/types';
-import { appToWire } from '@/lib/wire';
+import { appToWire, userToWire } from '@/lib/wire';
+
+/** Sessions live for 90 days from creation. */
+const SESSION_TTL_DAYS = 90;
+/** Millisecond constant used when converting a TTL in days to an absolute expiry. */
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Returns every registered app's ID. Used to grant owner sessions full
+ * access — owners see every app regardless of what was persisted on the
+ * session at creation time.
+ *
+ * @returns An array of every app ID currently in the database.
+ */
+async function getAllAppIds(): Promise<string[]> {
+  return (await db.getApps()).map((a) => a.id);
+}
 
 /**
  * Returns the apps visible to the shell for a given set of session appIds —
@@ -39,8 +71,6 @@ async function createAuthResponse(
 ): Promise<AuthResponse> {
   const token = createSessionToken();
   const now = new Date();
-  const SESSION_TTL_DAYS = 90;
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
   await db.createSession({
     token,
@@ -63,12 +93,7 @@ async function createAuthResponse(
   return {
     sessionToken: token,
     jwt,
-    user: {
-      id: user.id,
-      name: user.name,
-      type: user.type,
-      createdAt: user.createdAt.toISOString(),
-    },
+    user: userToWire(user),
     apps: apps.map(appToWire),
   };
 }
@@ -77,13 +102,10 @@ async function createAuthResponse(
 export async function setup(c: Context) {
   const owners = (await db.getUsers()).filter((u) => u.type === 'owner');
   if (owners.length > 0) {
-    return c.json({ error: 'Setup already completed' }, 403);
+    throw new ForbiddenError(ErrorCode.AuthSetupAlreadyCompleted, 'Setup already completed');
   }
 
-  const body = await c.req.json<{ username: string; password: string }>();
-  if (!body.username || !body.password) {
-    return c.json({ error: 'Username and password are required' }, 400);
-  }
+  const body = setupSchema.parse(await c.req.json());
 
   const user = await db.createUser({
     id: crypto.randomUUID(),
@@ -94,28 +116,25 @@ export async function setup(c: Context) {
     createdAt: new Date(),
   });
 
-  const allAppIds = (await db.getApps()).map((a) => a.id);
+  const allAppIds = await getAllAppIds();
   return c.json(await createAuthResponse(user, null, allAppIds), 201);
 }
 
 /** Owner username/password login. Returns session token, JWT, and all apps. */
 export async function login(c: Context) {
-  const body = await c.req.json<{ username: string; password: string }>();
-  if (!body.username || !body.password) {
-    return c.json({ error: 'Username and password are required' }, 400);
-  }
+  const body = loginSchema.parse(await c.req.json());
 
   const user = await db.getUserByUsername(body.username);
   if (!user || user.type !== 'owner' || !user.passwordHash) {
-    return c.json({ error: 'Invalid credentials' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthInvalidCredentials, 'Invalid credentials');
   }
 
   const valid = await comparePassword(body.password, user.passwordHash);
   if (!valid) {
-    return c.json({ error: 'Invalid credentials' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthInvalidCredentials, 'Invalid credentials');
   }
 
-  const allAppIds = (await db.getApps()).map((a) => a.id);
+  const allAppIds = await getAllAppIds();
   return c.json(await createAuthResponse(user, null, allAppIds));
 }
 
@@ -125,18 +144,15 @@ export async function login(c: Context) {
  * Creates an anonymous user if the code is not linked to a named user.
  */
 export async function validateCode(c: Context) {
-  const body = await c.req.json<{ code: string; password?: string }>();
-  if (!body.code) {
-    return c.json({ error: 'Code is required' }, 400);
-  }
+  const body = validateCodeSchema.parse(await c.req.json());
 
   const code = await db.getCode(body.code);
   if (!code) {
-    return c.json({ error: 'Invalid code' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthCodeInvalid, 'Invalid code');
   }
 
   if (code.expiresAt && code.expiresAt < new Date()) {
-    return c.json({ error: 'Code has expired' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthCodeExpired, 'Code has expired');
   }
 
   if (code.passwordHash) {
@@ -145,7 +161,7 @@ export async function validateCode(c: Context) {
     }
     const valid = await comparePassword(body.password, code.passwordHash);
     if (!valid) {
-      return c.json({ error: 'Invalid password' }, 401);
+      throw new UnauthorizedError(ErrorCode.AuthPasswordInvalid, 'Invalid password');
     }
   }
 
@@ -153,7 +169,7 @@ export async function validateCode(c: Context) {
   if (code.userId) {
     const existing = await db.getUser(code.userId);
     if (!existing) {
-      return c.json({ error: 'Invalid code' }, 401);
+      throw new UnauthorizedError(ErrorCode.AuthCodeInvalid, 'Invalid code');
     }
     user = existing;
   } else {
@@ -170,19 +186,16 @@ export async function validateCode(c: Context) {
 
 /** Validates a session token and returns the user, apps, and a fresh JWT. */
 export async function getSession(c: Context) {
-  const token = c.req.query('token');
-  if (!token) {
-    return c.json({ error: 'Token is required' }, 400);
-  }
+  const { token } = getSessionQuerySchema.parse(c.req.query());
 
   const session = await db.getSession(token);
   if (!session) {
-    return c.json({ error: 'Invalid session' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthSessionInvalid, 'Invalid session');
   }
 
   if (session.expiresAt < new Date()) {
     await db.deleteSession(token);
-    return c.json({ error: 'Session expired' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthSessionExpired, 'Session expired');
   }
 
   await db.updateSession(token, { lastActiveAt: new Date() });
@@ -191,7 +204,7 @@ export async function getSession(c: Context) {
 
   let appIds = session.appIds;
   if (user?.type === 'owner') {
-    appIds = (await db.getApps()).map((a) => a.id);
+    appIds = await getAllAppIds();
   }
 
   const apps = await visibleAppsFor(appIds, user?.type ?? null);
@@ -205,14 +218,7 @@ export async function getSession(c: Context) {
   const response: SessionResponse = {
     sessionToken: token,
     jwt,
-    user: user
-      ? {
-          id: user.id,
-          name: user.name,
-          type: user.type,
-          createdAt: user.createdAt.toISOString(),
-        }
-      : null,
+    user: user ? userToWire(user) : null,
     apps: apps.map(appToWire),
   };
 
@@ -221,10 +227,7 @@ export async function getSession(c: Context) {
 
 /** Invalidates a session by deleting it. Idempotent — succeeds even if the session doesn't exist. */
 export async function logout(c: Context) {
-  const body = await c.req.json<{ sessionToken: string }>();
-  if (!body.sessionToken) {
-    return c.json({ error: 'Session token is required' }, 400);
-  }
+  const body = logoutSchema.parse(await c.req.json());
 
   await db.deleteSession(body.sessionToken);
   return c.json({ success: true });

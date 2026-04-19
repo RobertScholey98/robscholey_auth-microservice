@@ -73,4 +73,13 @@ describe('POST /api/log-access', () => {
     );
     expect(res.status).toBe(401);
   });
+
+  it('returns validation.failed with fields[] when required fields are missing', async () => {
+    const res = await app.request('/api/log-access', json({}));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe('validation.failed');
+    expect(Array.isArray(body.error.fields)).toBe(true);
+    expect(body.error.fields.length).toBeGreaterThan(0);
+  });
 });

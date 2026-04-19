@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { handleAppError } from '@/lib';
 import { registerRoutes } from '@/routes/routes';
 
 const app = new Hono().basePath('/api');
@@ -15,6 +16,8 @@ app.use(
     allowHeaders: ['Content-Type', 'Authorization'],
   }),
 );
+
+app.onError(handleAppError);
 
 registerRoutes(app);
 

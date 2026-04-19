@@ -1,7 +1,14 @@
 import type { Context } from 'hono';
-import { db, hashPassword } from '@/lib';
+import { createCodeSchema, updateCodeSchema, ErrorCode } from '@robscholey/contracts';
+import { db, hashPassword, ConflictError, NotFoundError } from '@/lib';
 import type { AccessCode } from '@/types';
 import { accessCodeToWire } from '@/lib/wire';
+
+/** Length of the auto-generated portion of an access code. */
+const CODE_STRING_LENGTH = 5;
+
+/** One second in milliseconds — used when converting `expiresIn` seconds to an absolute date. */
+const MS_PER_SECOND = 1000;
 
 /**
  * Generates a short alphanumeric access code string.
@@ -10,10 +17,10 @@ import { accessCodeToWire } from '@/lib/wire';
  */
 function generateCodeString(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = new Uint8Array(5);
+  const bytes = new Uint8Array(CODE_STRING_LENGTH);
   crypto.getRandomValues(bytes);
   let code = '';
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < CODE_STRING_LENGTH; i++) {
     code += chars[bytes[i] % chars.length];
   }
   return code;
@@ -26,63 +33,40 @@ export async function listCodes(c: Context) {
 }
 
 /**
- * Creates a new access code. Requires `appIds` (non-empty).
+ * Creates a new access code. Body is validated by `createCodeSchema` —
+ * `appIds` must be non-empty, and `userId`/`userName` are mutually exclusive.
  *
- * The `code` string is optional — auto-generated when blank, used as-is when
+ * The `code` string is optional: auto-generated when blank, used as-is when
  * provided (409 if a code with that string already exists).
- *
- * Exactly one of `userId` or `userName` can be provided to attach the code to
- * a user. `userId` targets an existing user; `userName` creates a new named
- * user on the fly. If both are provided, the request is rejected with 400.
  *
  * Password, if provided, makes the code private and is hashed.
  * `expiresIn` (seconds) is converted to an absolute `expiresAt` date.
  */
 export async function createCode(c: Context) {
-  const body = await c.req.json<{
-    code?: string;
-    userId?: string;
-    userName?: string;
-    appIds: string[];
-    password?: string;
-    expiresIn?: number;
-    label?: string;
-  }>();
-
-  if (!body.appIds || body.appIds.length === 0) {
-    return c.json({ error: 'appIds is required and must not be empty' }, 400);
-  }
-
-  if (body.userId && body.userName) {
-    return c.json({ error: 'Provide either userId or userName, not both' }, 400);
-  }
+  const body = createCodeSchema.parse(await c.req.json());
 
   let userId: string | null = null;
   if (body.userId) {
     const user = await db.getUser(body.userId);
     if (!user) {
-      return c.json({ error: 'User not found' }, 404);
+      throw new NotFoundError(ErrorCode.AdminUserNotFound, 'User not found');
     }
     userId = user.id;
   } else if (body.userName) {
-    const trimmed = body.userName.trim();
-    if (!trimmed) {
-      return c.json({ error: 'userName cannot be blank' }, 400);
-    }
     const created = await db.createUser({
       id: crypto.randomUUID(),
-      name: trimmed,
+      name: body.userName,
       type: 'named',
       createdAt: new Date(),
     });
     userId = created.id;
   }
 
-  const codeString = body.code?.trim() || generateCodeString();
+  const codeString = body.code ?? generateCodeString();
 
   const existing = await db.getCode(codeString);
   if (existing) {
-    return c.json({ error: 'Code already exists' }, 409);
+    throw new ConflictError(ErrorCode.AdminCodeConflict, 'Code already exists');
   }
 
   const accessCode: AccessCode = {
@@ -90,7 +74,7 @@ export async function createCode(c: Context) {
     userId,
     appIds: body.appIds,
     passwordHash: body.password ? await hashPassword(body.password) : null,
-    expiresAt: body.expiresIn ? new Date(Date.now() + body.expiresIn * 1000) : null,
+    expiresAt: body.expiresIn ? new Date(Date.now() + body.expiresIn * MS_PER_SECOND) : null,
     createdAt: new Date(),
     label: body.label ?? '',
   };
@@ -101,7 +85,7 @@ export async function createCode(c: Context) {
 /** Partially updates an access code. Only `appIds`, `label`, and `expiresAt` can be modified. */
 export async function updateCode(c: Context) {
   const code = c.req.param('code')!;
-  const body = await c.req.json<{ appIds?: string[]; label?: string; expiresAt?: string | null }>();
+  const body = updateCodeSchema.parse(await c.req.json());
 
   const data: Omit<Partial<AccessCode>, 'code'> = {};
   if (body.appIds !== undefined) data.appIds = body.appIds;
@@ -111,7 +95,7 @@ export async function updateCode(c: Context) {
 
   const updated = await db.updateCode(code, data);
   if (!updated) {
-    return c.json({ error: 'Code not found' }, 404);
+    throw new NotFoundError(ErrorCode.AdminCodeNotFound, 'Code not found');
   }
 
   return c.json(accessCodeToWire(updated));
@@ -123,7 +107,7 @@ export async function deleteCode(c: Context) {
 
   const existing = await db.getCode(code);
   if (!existing) {
-    return c.json({ error: 'Code not found' }, 404);
+    throw new NotFoundError(ErrorCode.AdminCodeNotFound, 'Code not found');
   }
 
   const sessions = await db.getSessionsByCode(code);

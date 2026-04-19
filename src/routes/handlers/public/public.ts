@@ -1,12 +1,13 @@
 import type { Context } from 'hono';
-import { db } from '@/lib';
+import { ErrorCode } from '@robscholey/contracts';
+import { db, NotFoundError } from '@/lib';
 
 /** Returns public metadata (name, icon URL) for an active app by slug. No auth required. */
 export async function getAppMeta(c: Context) {
   const slug = c.req.param('slug')!;
   const meta = await db.getAppMeta(slug);
   if (!meta) {
-    return c.json({ error: 'App not found' }, 404);
+    throw new NotFoundError(ErrorCode.NotFound, 'App not found');
   }
 
   return c.json(meta);
@@ -17,7 +18,7 @@ export async function getAppIcon(c: Context) {
   const slug = c.req.param('slug')!;
   const meta = await db.getAppMeta(slug);
   if (!meta) {
-    return c.json({ error: 'App not found' }, 404);
+    throw new NotFoundError(ErrorCode.NotFound, 'App not found');
   }
 
   // Placeholder: return a simple SVG with the app's first letter
@@ -30,8 +31,10 @@ export async function getAppIcon(c: Context) {
   <text x="96" y="96" font-family="system-ui, sans-serif" font-size="96" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${letter}</text>
 </svg>`;
 
+  /** One hour in seconds — app icons are served as immutable placeholders today. */
+  const ICON_CACHE_MAX_AGE = 3600;
   return c.body(svg, 200, {
     'Content-Type': 'image/svg+xml',
-    'Cache-Control': 'public, max-age=3600',
+    'Cache-Control': `public, max-age=${ICON_CACHE_MAX_AGE}`,
   });
 }

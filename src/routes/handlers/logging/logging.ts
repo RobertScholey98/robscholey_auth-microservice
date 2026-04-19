@@ -1,27 +1,28 @@
 import type { Context } from 'hono';
-import { db } from '@/lib';
+import { logAccessSchema, ErrorCode } from '@robscholey/contracts';
+import { db, ForbiddenError, UnauthorizedError } from '@/lib';
 
 /**
  * Logs an app access event. Called by the shell when an iframe loads.
  * Validates that the session exists before recording.
  */
 export async function logAccess(c: Context) {
-  const body = await c.req.json<{ sessionToken: string; appId: string }>();
-  if (!body.sessionToken || !body.appId) {
-    return c.json({ error: 'sessionToken and appId are required' }, 400);
-  }
+  const body = logAccessSchema.parse(await c.req.json());
 
   const session = await db.getSession(body.sessionToken);
   if (!session) {
-    return c.json({ error: 'Invalid session' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthSessionInvalid, 'Invalid session');
   }
 
   if (session.expiresAt < new Date()) {
-    return c.json({ error: 'Session expired' }, 401);
+    throw new UnauthorizedError(ErrorCode.AuthSessionExpired, 'Session expired');
   }
 
   if (!session.appIds.includes(body.appId)) {
-    return c.json({ error: 'App not permitted for this session' }, 403);
+    throw new ForbiddenError(
+      ErrorCode.LoggingAppNotPermitted,
+      'App not permitted for this session',
+    );
   }
 
   await db.logAccess({

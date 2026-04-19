@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
-import { db } from '@/lib';
+import { patchAppActiveSchema, ErrorCode } from '@robscholey/contracts';
+import { db, BadRequestError, NotFoundError } from '@/lib';
 import { loadAppsConfig } from '@/lib/appsConfig';
 import { appToWire } from '@/lib/wire';
 
@@ -18,7 +19,7 @@ export async function listApps(c: Context) {
       return {
         ...appToWire(a),
         isOrphan: !cfg,
-        ownerOnly: cfg?.ownerOnly === true,
+        ownerOnly: cfg?.ownerOnly ?? false,
       };
     }),
   );
@@ -30,20 +31,20 @@ export async function listApps(c: Context) {
  */
 export async function patchAppActive(c: Context) {
   const id = c.req.param('id')!;
-  const body = await c.req.json<{ active?: unknown }>();
-  if (typeof body.active !== 'boolean') {
-    return c.json({ error: 'active must be a boolean' }, 400);
-  }
+  const body = patchAppActiveSchema.parse(await c.req.json());
 
   const config = await loadAppsConfig();
   const cfg = config.find((a) => a.id === id);
   if (cfg?.ownerOnly) {
-    return c.json({ error: 'Owner-only apps are always active and cannot be toggled' }, 400);
+    throw new BadRequestError(
+      ErrorCode.AdminAppOwnerOnlyToggle,
+      'Owner-only apps are always active and cannot be toggled',
+    );
   }
 
   const updated = await db.updateApp(id, { active: body.active });
   if (!updated) {
-    return c.json({ error: 'App not found' }, 404);
+    throw new NotFoundError(ErrorCode.AdminAppNotFound, 'App not found');
   }
 
   return c.json(appToWire(updated));
@@ -59,15 +60,15 @@ export async function deleteApp(c: Context) {
 
   const config = await loadAppsConfig();
   if (config.some((a) => a.id === id)) {
-    return c.json(
-      { error: 'Remove this app from appsConfig.json before deleting it from the database' },
-      400,
+    throw new BadRequestError(
+      ErrorCode.AdminAppInConfig,
+      'Remove this app from appsConfig.json before deleting it from the database',
     );
   }
 
   const deleted = await db.deleteApp(id);
   if (!deleted) {
-    return c.json({ error: 'App not found' }, 404);
+    throw new NotFoundError(ErrorCode.AdminAppNotFound, 'App not found');
   }
 
   return c.json({ success: true });

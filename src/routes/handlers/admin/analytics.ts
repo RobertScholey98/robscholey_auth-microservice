@@ -1,27 +1,21 @@
 import type { Context } from 'hono';
+import { getAnalyticsQuerySchema } from '@robscholey/contracts';
 import { db } from '@/lib';
 import { accessLogToWire } from '@/lib/wire';
 
 /**
  * Returns access log entries with optional filtering and aggregated stats.
- * Query params: `codeId`, `appId`, `from` (ISO date), `to` (ISO date).
+ * Query params: `codeId`, `appId`, `from` (ISO 8601 date), `to` (ISO 8601 date).
  */
 export async function getAnalytics(c: Context) {
-  const codeId = c.req.query('codeId');
-  const appId = c.req.query('appId');
-  const from = c.req.query('from');
-  const to = c.req.query('to');
+  const query = getAnalyticsQuerySchema.parse(c.req.query());
 
-  const fromDate = from ? new Date(from) : undefined;
-  const toDate = to ? new Date(to) : undefined;
-
-  if ((from && isNaN(fromDate!.getTime())) || (to && isNaN(toDate!.getTime()))) {
-    return c.json({ error: 'Invalid date format. Use ISO 8601.' }, 400);
-  }
+  const fromDate = query.from ? new Date(query.from) : undefined;
+  const toDate = query.to ? new Date(query.to) : undefined;
 
   const allLogs = await db.getAccessLogs({
-    codeId: codeId || undefined,
-    appId: appId || undefined,
+    codeId: query.codeId,
+    appId: query.appId,
   });
 
   // Single pass: filter by date range and aggregate stats simultaneously.

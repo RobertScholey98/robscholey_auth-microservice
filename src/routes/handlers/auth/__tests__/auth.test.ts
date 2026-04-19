@@ -219,7 +219,7 @@ describe('GET /api/auth/session', () => {
     const res = await app.request('/api/auth/session?token=sess_expired');
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toBe('Session expired');
+    expect(body.error.message).toBe('Session expired');
 
     // Session should be deleted
     expect(await db.getSession('sess_expired')).toBeNull();
@@ -317,5 +317,22 @@ describe('Health check', () => {
     const body = await res.json();
     expect(body.status).toBe('ok');
     expect(body.timestamp).toBeDefined();
+  });
+});
+
+describe('Validation envelope', () => {
+  it('returns validation.failed with populated fields[] for a missing body field', async () => {
+    // setup requires username AND password; supplying neither triggers two issues
+    const res = await app.request('/api/auth/setup', json({}));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe('validation.failed');
+    expect(body.error.message).toBe('Validation failed');
+    expect(Array.isArray(body.error.fields)).toBe(true);
+    expect(body.error.fields.length).toBeGreaterThan(0);
+    expect(body.error.fields[0]).toEqual({
+      path: expect.any(String),
+      message: expect.any(String),
+    });
   });
 });

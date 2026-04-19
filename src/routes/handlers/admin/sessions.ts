@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
-import { db } from '@/lib';
+import { ErrorCode } from '@robscholey/contracts';
+import { db, NotFoundError } from '@/lib';
 import { sessionToWire } from '@/lib/wire';
 
 /** Lists sessions, optionally filtered by `?codeId=`. */
@@ -20,7 +21,7 @@ export async function deleteSession(c: Context) {
   const token = c.req.param('token')!;
   const deleted = await db.deleteSession(token);
   if (!deleted) {
-    return c.json({ error: 'Session not found' }, 404);
+    throw new NotFoundError(ErrorCode.AdminSessionNotFound, 'Session not found');
   }
 
   return c.json({ success: true });

@@ -8,6 +8,16 @@ export { hashPassword, comparePassword } from './password';
 export { createSessionToken } from './session';
 export { signJWT, verifyJWT } from './jwt';
 export type { JWTPayload } from './jwt';
+export {
+  AppError,
+  ValidationError,
+  BadRequestError,
+  UnauthorizedError,
+  ForbiddenError,
+  NotFoundError,
+  ConflictError,
+  handleAppError,
+} from './errors';
 
 /**
  * Builds the singleton database backend from the environment.

@@ -632,4 +632,51 @@ describe('GET /api/admin/analytics', () => {
     // Only today's 2 logs, not yesterday's
     expect(body.logs).toHaveLength(2);
   });
+
+  it('rejects invalid date format with validation.failed envelope', async () => {
+    const res = await adminReq('GET', '/api/admin/analytics?from=not-a-date');
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe('validation.failed');
+    expect(Array.isArray(body.error.fields)).toBe(true);
+    expect(body.error.fields.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Validation envelope (admin)', () => {
+  it('returns validation.failed with fields[] on createCode missing appIds', async () => {
+    const res = await adminReq('POST', '/api/admin/codes', {});
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe('validation.failed');
+    expect(Array.isArray(body.error.fields)).toBe(true);
+    expect(body.error.fields.length).toBeGreaterThan(0);
+  });
+
+  it('returns validation.failed with fields[] on createUser missing name', async () => {
+    const res = await adminReq('POST', '/api/admin/users', {});
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe('validation.failed');
+    expect(Array.isArray(body.error.fields)).toBe(true);
+    expect(body.error.fields.length).toBeGreaterThan(0);
+  });
+
+  it('returns validation.failed with fields[] on patchAppActive with non-boolean', async () => {
+    await db.createApp({
+      id: 'in-config',
+      name: 'In Config',
+      url: 'http://localhost:3999',
+      iconUrl: '',
+      description: '',
+      active: false,
+    });
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
+      active: 'yes',
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe('validation.failed');
+    expect(Array.isArray(body.error.fields)).toBe(true);
+  });
 });
