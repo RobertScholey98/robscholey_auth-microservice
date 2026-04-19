@@ -73,4 +73,45 @@ describe('syncApps', () => {
     expect(result.synced).toBe(0);
     expect(result.orphans).toEqual(['a']);
   });
+
+  it('inserts ownerOnly entries as active on first sync', async () => {
+    await syncApps(db, [
+      {
+        id: 'admin',
+        name: 'Admin',
+        url: 'http://admin',
+        iconUrl: '',
+        description: '',
+        ownerOnly: true,
+      },
+    ]);
+
+    const app = await db.getApp('admin');
+    expect(app!.active).toBe(true);
+  });
+
+  it('re-activates ownerOnly apps on every sync even if toggled off in the DB', async () => {
+    await db.createApp({
+      id: 'admin',
+      name: 'Admin',
+      url: 'http://admin',
+      iconUrl: '',
+      description: '',
+      active: false,
+    });
+
+    await syncApps(db, [
+      {
+        id: 'admin',
+        name: 'Admin',
+        url: 'http://admin',
+        iconUrl: '',
+        description: '',
+        ownerOnly: true,
+      },
+    ]);
+
+    const app = await db.getApp('admin');
+    expect(app!.active).toBe(true);
+  });
 });

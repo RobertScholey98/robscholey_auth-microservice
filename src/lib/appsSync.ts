@@ -13,10 +13,12 @@ export interface SyncAppsResult {
  * Reconciles the DB's apps table with the structural config.
  *
  * For each entry in config:
- *   - If already in DB → updates structural fields (name/url/iconUrl/description),
- *     preserving the DB-owned `active` flag.
- *   - Otherwise → inserts with `active: false`. New apps are staged; flip active
- *     in the admin UI once the app is verified.
+ *   - If already in DB → updates structural fields. Preserves `active` for normal
+ *     apps, force-resets `active: true` for owner-only apps (they're owner tooling
+ *     that shouldn't be toggleable — always accessible to the owner).
+ *   - Otherwise → inserts with `active: false` for normal apps, `active: true` for
+ *     owner-only apps (so new admin-style apps appear on first boot without a
+ *     manual unblock step).
  *
  * Apps present in the DB but missing from config are left untouched (orphans).
  * They're returned for logging and surfaced in the admin UI until removed.
@@ -25,6 +27,7 @@ export async function syncApps(db: DB, config: AppConfig[]): Promise<SyncAppsRes
   const configIds = new Set(config.map((a) => a.id));
 
   for (const entry of config) {
+    const ownerOnly = entry.ownerOnly === true;
     const existing = await db.getApp(entry.id);
     if (existing) {
       await db.updateApp(entry.id, {
@@ -32,9 +35,10 @@ export async function syncApps(db: DB, config: AppConfig[]): Promise<SyncAppsRes
         url: entry.url,
         iconUrl: entry.iconUrl,
         description: entry.description,
+        ...(ownerOnly ? { active: true } : {}),
       });
     } else {
-      await db.createApp({ ...entry, active: false });
+      await db.createApp({ ...entry, active: ownerOnly });
     }
   }
 

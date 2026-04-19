@@ -21,12 +21,21 @@ export async function listApps(c: Context) {
   );
 }
 
-/** Toggles the `active` flag on an app. Body: `{ active: boolean }`. */
+/**
+ * Toggles the `active` flag on an app. Body: `{ active: boolean }`.
+ * Owner-only apps reject toggles — they're force-active on every boot sync.
+ */
 export async function patchAppActive(c: Context) {
   const id = c.req.param('id')!;
   const body = await c.req.json<{ active?: unknown }>();
   if (typeof body.active !== 'boolean') {
     return c.json({ error: 'active must be a boolean' }, 400);
+  }
+
+  const config = await loadAppsConfig();
+  const cfg = config.find((a) => a.id === id);
+  if (cfg?.ownerOnly) {
+    return c.json({ error: 'Owner-only apps are always active and cannot be toggled' }, 400);
   }
 
   const updated = await db.updateApp(id, { active: body.active });
