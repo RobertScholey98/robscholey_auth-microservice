@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { InMemoryDB } from '../db';
+import { InMemoryDatabase } from '../db';
 import type { App, User, AccessCode, Session, AccessLog } from '@/types';
 
-let db: InMemoryDB;
+let db: InMemoryDatabase;
 
 beforeEach(() => {
-  db = new InMemoryDB();
+  db = new InMemoryDatabase();
 });
 
-describe('InMemoryDB — Apps', () => {
+describe('InMemoryDatabase — Apps', () => {
   const app: App = {
     id: 'portfolio',
     name: 'Portfolio',
@@ -19,51 +19,51 @@ describe('InMemoryDB — Apps', () => {
   };
 
   it('creates and retrieves an app', async () => {
-    await db.createApp(app);
-    expect(await db.getApp('portfolio')).toEqual(app);
-    expect(await db.getApps()).toHaveLength(1);
+    await db.apps.create(app);
+    expect(await db.apps.get('portfolio')).toEqual(app);
+    expect(await db.apps.list()).toHaveLength(1);
   });
 
   it('returns null for nonexistent app', async () => {
-    expect(await db.getApp('nope')).toBeNull();
+    expect(await db.apps.get('nope')).toBeNull();
   });
 
   it('updates an app', async () => {
-    await db.createApp(app);
-    const updated = await db.updateApp('portfolio', { name: 'My Portfolio' });
+    await db.apps.create(app);
+    const updated = await db.apps.update('portfolio', { name: 'My Portfolio' });
     expect(updated!.name).toBe('My Portfolio');
     expect(updated!.id).toBe('portfolio');
   });
 
   it('deletes an app', async () => {
-    await db.createApp(app);
-    expect(await db.deleteApp('portfolio')).toBe(true);
-    expect(await db.getApp('portfolio')).toBeNull();
+    await db.apps.create(app);
+    expect(await db.apps.delete('portfolio')).toBe(true);
+    expect(await db.apps.get('portfolio')).toBeNull();
   });
 
-  it('getAppMeta returns name and iconUrl for active apps', async () => {
-    await db.createApp(app);
-    expect(await db.getAppMeta('portfolio')).toEqual({
+  it('getMeta returns name and iconUrl for active apps', async () => {
+    await db.apps.create(app);
+    expect(await db.apps.getMeta('portfolio')).toEqual({
       name: 'Portfolio',
       iconUrl: '/icons/portfolio.png',
     });
   });
 
-  it('getAppMeta returns null for inactive apps', async () => {
-    await db.createApp({ ...app, active: false });
-    expect(await db.getAppMeta('portfolio')).toBeNull();
+  it('getMeta returns null for inactive apps', async () => {
+    await db.apps.create({ ...app, active: false });
+    expect(await db.apps.getMeta('portfolio')).toBeNull();
   });
 
-  it('getAppMeta returns null for nonexistent app', async () => {
-    expect(await db.getAppMeta('nope')).toBeNull();
+  it('getMeta returns null for nonexistent app', async () => {
+    expect(await db.apps.getMeta('nope')).toBeNull();
   });
 
   it('returns null when updating nonexistent app', async () => {
-    expect(await db.updateApp('nope', { name: 'x' })).toBeNull();
+    expect(await db.apps.update('nope', { name: 'x' })).toBeNull();
   });
 });
 
-describe('InMemoryDB — Users', () => {
+describe('InMemoryDatabase — Users', () => {
   const user: User = {
     id: 'user-1',
     name: 'Rob',
@@ -74,28 +74,28 @@ describe('InMemoryDB — Users', () => {
   };
 
   it('creates and retrieves a user', async () => {
-    await db.createUser(user);
-    expect(await db.getUser('user-1')).toEqual(user);
+    await db.users.create(user);
+    expect(await db.users.get('user-1')).toEqual(user);
   });
 
   it('finds user by username', async () => {
-    await db.createUser(user);
-    expect(await db.getUserByUsername('rob')).toEqual(user);
-    expect(await db.getUserByUsername('nobody')).toBeNull();
+    await db.users.create(user);
+    expect(await db.users.getByUsername('rob')).toEqual(user);
+    expect(await db.users.getByUsername('nobody')).toBeNull();
   });
 
   it('deletes a user', async () => {
-    await db.createUser(user);
-    expect(await db.deleteUser('user-1')).toBe(true);
-    expect(await db.getUser('user-1')).toBeNull();
+    await db.users.create(user);
+    expect(await db.users.delete('user-1')).toBe(true);
+    expect(await db.users.get('user-1')).toBeNull();
   });
 
   it('returns null when updating nonexistent user', async () => {
-    expect(await db.updateUser('nope', { name: 'x' })).toBeNull();
+    expect(await db.users.update('nope', { name: 'x' })).toBeNull();
   });
 });
 
-describe('InMemoryDB — Access Codes', () => {
+describe('InMemoryDatabase — Access Codes', () => {
   const code: AccessCode = {
     code: 'XK7F2',
     userId: null,
@@ -107,36 +107,36 @@ describe('InMemoryDB — Access Codes', () => {
   };
 
   it('creates and retrieves a code', async () => {
-    await db.createCode(code);
-    expect(await db.getCode('XK7F2')).toEqual(code);
+    await db.codes.create(code);
+    expect(await db.codes.get('XK7F2')).toEqual(code);
   });
 
   it('filters codes by user', async () => {
-    await db.createCode(code);
-    await db.createCode({ ...code, code: 'ABC', userId: 'user-1' });
-    expect(await db.getCodesByUser('user-1')).toHaveLength(1);
-    expect(await db.getCodesByUser('nobody')).toHaveLength(0);
+    await db.codes.create(code);
+    await db.codes.create({ ...code, code: 'ABC', userId: 'user-1' });
+    expect(await db.codes.getByUser('user-1')).toHaveLength(1);
+    expect(await db.codes.getByUser('nobody')).toHaveLength(0);
   });
 
   it('updates a code', async () => {
-    await db.createCode(code);
-    const updated = await db.updateCode('XK7F2', { label: 'Updated' });
+    await db.codes.create(code);
+    const updated = await db.codes.update('XK7F2', { label: 'Updated' });
     expect(updated!.label).toBe('Updated');
     expect(updated!.code).toBe('XK7F2');
   });
 
   it('returns null when updating nonexistent code', async () => {
-    expect(await db.updateCode('NOPE', { label: 'x' })).toBeNull();
+    expect(await db.codes.update('NOPE', { label: 'x' })).toBeNull();
   });
 
   it('deletes a code', async () => {
-    await db.createCode(code);
-    expect(await db.deleteCode('XK7F2')).toBe(true);
-    expect(await db.getCode('XK7F2')).toBeNull();
+    await db.codes.create(code);
+    expect(await db.codes.delete('XK7F2')).toBe(true);
+    expect(await db.codes.get('XK7F2')).toBeNull();
   });
 });
 
-describe('InMemoryDB — Sessions', () => {
+describe('InMemoryDatabase — Sessions', () => {
   const session: Session = {
     token: 'sess_abc',
     codeId: 'XK7F2',
@@ -148,19 +148,19 @@ describe('InMemoryDB — Sessions', () => {
   };
 
   it('creates and retrieves a session', async () => {
-    await db.createSession(session);
-    expect(await db.getSession('sess_abc')).toEqual(session);
+    await db.sessions.create(session);
+    expect(await db.sessions.get('sess_abc')).toEqual(session);
   });
 
   it('filters sessions by code', async () => {
-    await db.createSession(session);
-    expect(await db.getSessionsByCode('XK7F2')).toHaveLength(1);
-    expect(await db.getSessionsByCode('OTHER')).toHaveLength(0);
+    await db.sessions.create(session);
+    expect(await db.sessions.getByCode('XK7F2')).toHaveLength(1);
+    expect(await db.sessions.getByCode('OTHER')).toHaveLength(0);
   });
 
   it('updates a session', async () => {
-    await db.createSession(session);
-    const updated = await db.updateSession('sess_abc', {
+    await db.sessions.create(session);
+    const updated = await db.sessions.update('sess_abc', {
       lastActiveAt: new Date('2030-01-01'),
     });
     expect(updated!.lastActiveAt).toEqual(new Date('2030-01-01'));
@@ -168,21 +168,21 @@ describe('InMemoryDB — Sessions', () => {
   });
 
   it('returns null when updating nonexistent session', async () => {
-    expect(await db.updateSession('fake', { lastActiveAt: new Date() })).toBeNull();
+    expect(await db.sessions.update('fake', { lastActiveAt: new Date() })).toBeNull();
   });
 
   it('deletes a session', async () => {
-    await db.createSession(session);
-    await db.deleteSession('sess_abc');
-    expect(await db.getSession('sess_abc')).toBeNull();
+    await db.sessions.create(session);
+    await db.sessions.delete('sess_abc');
+    expect(await db.sessions.get('sess_abc')).toBeNull();
   });
 
   it('returns null for nonexistent session', async () => {
-    expect(await db.getSession('nope')).toBeNull();
+    expect(await db.sessions.get('nope')).toBeNull();
   });
 });
 
-describe('InMemoryDB — Access Logs', () => {
+describe('InMemoryDatabase — Access Logs', () => {
   const log: AccessLog = {
     id: 'log-1',
     sessionToken: 'sess_abc',
@@ -193,19 +193,19 @@ describe('InMemoryDB — Access Logs', () => {
   };
 
   it('logs and retrieves access entries', async () => {
-    await db.logAccess(log);
-    expect(await db.getAccessLogs({})).toHaveLength(1);
+    await db.accessLogs.append(log);
+    expect(await db.accessLogs.query({})).toHaveLength(1);
   });
 
   it('filters by codeId', async () => {
-    await db.logAccess(log);
-    expect(await db.getAccessLogs({ codeId: 'XK7F2' })).toHaveLength(1);
-    expect(await db.getAccessLogs({ codeId: 'OTHER' })).toHaveLength(0);
+    await db.accessLogs.append(log);
+    expect(await db.accessLogs.query({ codeId: 'XK7F2' })).toHaveLength(1);
+    expect(await db.accessLogs.query({ codeId: 'OTHER' })).toHaveLength(0);
   });
 
   it('filters by appId', async () => {
-    await db.logAccess(log);
-    expect(await db.getAccessLogs({ appId: 'portfolio' })).toHaveLength(1);
-    expect(await db.getAccessLogs({ appId: 'other' })).toHaveLength(0);
+    await db.accessLogs.append(log);
+    expect(await db.accessLogs.query({ appId: 'portfolio' })).toHaveLength(1);
+    expect(await db.accessLogs.query({ appId: 'other' })).toHaveLength(0);
   });
 });

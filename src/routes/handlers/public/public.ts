@@ -1,39 +1,39 @@
 import type { Context } from 'hono';
-import { ErrorCode } from '@robscholey/contracts';
-import { db, NotFoundError } from '@/lib';
+import { services } from '@/services';
+
+/** One hour in seconds — app icons are served as immutable placeholders today. */
+const ICON_CACHE_MAX_AGE = 3600;
+
+/**
+ * Renders a placeholder SVG for an app icon — a dark-rounded tile with the
+ * first alphanumeric character of the app's name. Pure presentation: SVG is
+ * an HTTP output format, not a service concern.
+ *
+ * @param name - The app's display name.
+ * @returns An SVG string ready to return as a response body.
+ */
+function renderPlaceholderSvg(name: string): string {
+  const letter = name
+    .charAt(0)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '?');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#1a1a1a"/>
+  <text x="96" y="96" font-family="system-ui, sans-serif" font-size="96" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${letter}</text>
+</svg>`;
+}
 
 /** Returns public metadata (name, icon URL) for an active app by slug. No auth required. */
 export async function getAppMeta(c: Context) {
   const slug = c.req.param('slug')!;
-  const meta = await db.getAppMeta(slug);
-  if (!meta) {
-    throw new NotFoundError(ErrorCode.NotFound, 'App not found');
-  }
-
-  return c.json(meta);
+  return c.json(await services.public.getAppMeta(slug));
 }
 
-/** Serves the app icon for a given slug. Returns a placeholder for now. */
+/** Serves the app icon for a given slug. Returns a placeholder SVG for now. */
 export async function getAppIcon(c: Context) {
   const slug = c.req.param('slug')!;
-  const meta = await db.getAppMeta(slug);
-  if (!meta) {
-    throw new NotFoundError(ErrorCode.NotFound, 'App not found');
-  }
-
-  // Placeholder: return a simple SVG with the app's first letter
-  const letter = meta.name
-    .charAt(0)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '?');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="32" fill="#1a1a1a"/>
-  <text x="96" y="96" font-family="system-ui, sans-serif" font-size="96" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${letter}</text>
-</svg>`;
-
-  /** One hour in seconds — app icons are served as immutable placeholders today. */
-  const ICON_CACHE_MAX_AGE = 3600;
-  return c.body(svg, 200, {
+  const meta = await services.public.getAppMeta(slug);
+  return c.body(renderPlaceholderSvg(meta.name), 200, {
     'Content-Type': 'image/svg+xml',
     'Cache-Control': `public, max-age=${ICON_CACHE_MAX_AGE}`,
   });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import app from '@/index';
 import { db } from '@/lib';
+import { resetDatabase } from '@/lib/__tests__/resetDatabase';
 
 beforeAll(() => {
   process.env.JWT_SIGNING_SECRET = 'test-secret';
@@ -9,12 +10,12 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
-  await db._testReset();
+  await resetDatabase(db);
 });
 
 describe('GET /api/apps/:slug/meta', () => {
   it('returns metadata for an active app', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'portfolio',
       name: 'Portfolio',
       url: 'https://portfolio.vercel.app',
@@ -37,7 +38,7 @@ describe('GET /api/apps/:slug/meta', () => {
   });
 
   it('returns 404 for inactive app', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'hidden',
       name: 'Hidden',
       url: 'https://hidden.vercel.app',
@@ -51,7 +52,7 @@ describe('GET /api/apps/:slug/meta', () => {
   });
 
   it('does not require authentication', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'portfolio',
       name: 'Portfolio',
       url: 'https://portfolio.vercel.app',
@@ -68,7 +69,7 @@ describe('GET /api/apps/:slug/meta', () => {
 
 describe('GET /api/app-icon/:slug', () => {
   it('returns an SVG placeholder icon for an active app', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'portfolio',
       name: 'Portfolio',
       url: 'https://portfolio.vercel.app',
@@ -93,7 +94,7 @@ describe('GET /api/app-icon/:slug', () => {
   });
 
   it('returns 404 for inactive app', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'hidden',
       name: 'Hidden',
       url: 'https://hidden.vercel.app',

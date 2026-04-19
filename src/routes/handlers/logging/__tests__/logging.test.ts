@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import app from '@/index';
 import { db } from '@/lib';
+import { resetDatabase } from '@/lib/__tests__/resetDatabase';
 import { _testResetRateLimit } from '@/middleware';
 
 beforeAll(() => {
@@ -12,11 +13,11 @@ beforeAll(() => {
 let sessionToken: string;
 
 beforeEach(async () => {
-  await db._testReset();
+  await resetDatabase(db);
   _testResetRateLimit();
 
   // Register an app before setup so the owner session captures it in appIds
-  await db.createApp({
+  await db.apps.create({
     id: 'portfolio',
     name: 'Portfolio',
     url: 'https://portfolio.vercel.app',
@@ -47,7 +48,7 @@ describe('POST /api/log-access', () => {
     const res = await app.request('/api/log-access', json({ sessionToken, appId: 'portfolio' }));
     expect(res.status).toBe(200);
 
-    const logs = await db.getAccessLogs({ appId: 'portfolio' });
+    const logs = await db.accessLogs.query({ appId: 'portfolio' });
     expect(logs).toHaveLength(1);
     expect(logs[0].sessionToken).toBe(sessionToken);
     expect(logs[0].appId).toBe('portfolio');

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { SignJWT } from 'jose';
 import app from '@/index';
 import { db } from '@/lib';
+import { resetDatabase } from '@/lib/__tests__/resetDatabase';
 import { _testResetRateLimit } from '@/middleware';
 
 beforeAll(() => {
@@ -14,7 +15,7 @@ let ownerToken: string;
 let ownerId: string;
 
 beforeEach(async () => {
-  await db._testReset();
+  await resetDatabase(db);
   _testResetRateLimit();
 
   // Create owner and take the JWT the setup route hands back.
@@ -98,7 +99,7 @@ describe('Admin auth middleware', () => {
 
   it('rejects a JWT whose subject user no longer exists', async () => {
     // Owner JWT from beforeEach, but delete the user from the DB.
-    await db.deleteUser(ownerId);
+    await db.users.delete(ownerId);
     const res = await adminReq('GET', '/api/admin/apps');
     expect(res.status).toBe(401);
   });
@@ -112,7 +113,7 @@ describe('GET /api/admin/apps', () => {
   });
 
   it('annotates apps with isOrphan based on appsConfig.json', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'in-config',
       name: 'In Config',
       url: 'http://localhost:3999',
@@ -120,7 +121,7 @@ describe('GET /api/admin/apps', () => {
       description: 'Fixture app present in appsConfig.json',
       active: true,
     });
-    await db.createApp({
+    await db.apps.create({
       id: 'legacy',
       name: 'Legacy',
       url: 'http://localhost:9999',
@@ -140,7 +141,7 @@ describe('GET /api/admin/apps', () => {
 
 describe('PATCH /api/admin/apps/:id/active', () => {
   beforeEach(async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'in-config',
       name: 'In Config',
       url: 'http://localhost:3999',
@@ -160,7 +161,7 @@ describe('PATCH /api/admin/apps/:id/active', () => {
   });
 
   it('toggles active to false', async () => {
-    await db.updateApp('in-config', { active: true });
+    await db.apps.update('in-config', { active: true });
     const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
       active: false,
     });
@@ -186,7 +187,7 @@ describe('PATCH /api/admin/apps/:id/active', () => {
 
 describe('DELETE /api/admin/apps/:id', () => {
   it('deletes an orphan app (not in appsConfig.json)', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'legacy',
       name: 'Legacy',
       url: 'http://localhost:9999',
@@ -202,7 +203,7 @@ describe('DELETE /api/admin/apps/:id', () => {
   });
 
   it('refuses to delete apps still present in appsConfig.json', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'in-config',
       name: 'In Config',
       url: 'http://localhost:3999',
@@ -212,7 +213,7 @@ describe('DELETE /api/admin/apps/:id', () => {
     });
     const res = await adminReq('DELETE', '/api/admin/apps/in-config');
     expect(res.status).toBe(400);
-    expect(await db.getApp('in-config')).not.toBeNull();
+    expect(await db.apps.get('in-config')).not.toBeNull();
   });
 
   it('returns 404 for nonexistent app', async () => {
@@ -282,7 +283,7 @@ describe('DELETE /api/admin/users/:id', () => {
     const { id: userId } = await userRes.json();
 
     // Create an app for the code
-    await db.createApp({
+    await db.apps.create({
       id: 'portfolio',
       name: 'Portfolio',
       url: 'https://portfolio.vercel.app',
@@ -312,9 +313,9 @@ describe('DELETE /api/admin/users/:id', () => {
     expect(deleteRes.status).toBe(200);
 
     // Verify cascade: user, code, and session should all be gone
-    expect(await db.getUser(userId)).toBeNull();
-    expect(await db.getCode(codeString)).toBeNull();
-    expect(await db.getSession(sessionToken)).toBeNull();
+    expect(await db.users.get(userId)).toBeNull();
+    expect(await db.codes.get(codeString)).toBeNull();
+    expect(await db.sessions.get(sessionToken)).toBeNull();
   });
 
   it('returns 404 for nonexistent user', async () => {
@@ -335,7 +336,7 @@ describe('GET /api/admin/codes', () => {
 
 describe('POST /api/admin/codes', () => {
   beforeEach(async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'portfolio',
       name: 'Portfolio',
       url: 'https://portfolio.vercel.app',
@@ -437,7 +438,7 @@ describe('POST /api/admin/codes', () => {
 
 describe('PUT /api/admin/codes/:code', () => {
   it('updates a code', async () => {
-    await db.createCode({
+    await db.codes.create({
       code: 'XK7F2',
       userId: null,
       appIds: ['portfolio'],
@@ -469,7 +470,7 @@ describe('PUT /api/admin/codes/:code', () => {
 
 describe('DELETE /api/admin/codes/:code', () => {
   it('deletes a code and cascades to sessions', async () => {
-    await db.createCode({
+    await db.codes.create({
       code: 'XK7F2',
       userId: null,
       appIds: ['portfolio'],
@@ -480,7 +481,7 @@ describe('DELETE /api/admin/codes/:code', () => {
     });
 
     // Create a session from this code
-    await db.createSession({
+    await db.sessions.create({
       token: 'sess_test',
       codeId: 'XK7F2',
       userId: null,
@@ -493,8 +494,8 @@ describe('DELETE /api/admin/codes/:code', () => {
     const res = await adminReq('DELETE', '/api/admin/codes/XK7F2');
     expect(res.status).toBe(200);
 
-    expect(await db.getCode('XK7F2')).toBeNull();
-    expect(await db.getSession('sess_test')).toBeNull();
+    expect(await db.codes.get('XK7F2')).toBeNull();
+    expect(await db.sessions.get('sess_test')).toBeNull();
   });
 
   it('returns 404 for nonexistent code', async () => {
@@ -516,7 +517,7 @@ describe('GET /api/admin/sessions', () => {
   });
 
   it('filters by codeId', async () => {
-    await db.createCode({
+    await db.codes.create({
       code: 'ABC',
       userId: null,
       appIds: [],
@@ -525,7 +526,7 @@ describe('GET /api/admin/sessions', () => {
       createdAt: new Date(),
       label: 'Test code',
     });
-    await db.createSession({
+    await db.sessions.create({
       token: 'sess_code1',
       codeId: 'ABC',
       userId: null,
@@ -540,11 +541,22 @@ describe('GET /api/admin/sessions', () => {
     expect(sessions).toHaveLength(1);
     expect(sessions[0].codeId).toBe('ABC');
   });
+
+  it('treats an empty codeId query param as no filter', async () => {
+    // Regression: pre-refactor the handler used a truthy check so `?codeId=`
+    // (empty string) returned every session. The factored-out service uses a
+    // strict `!== undefined` check, so the handler now normalises empty
+    // strings to undefined before calling through.
+    const res = await adminReq('GET', '/api/admin/sessions?codeId=');
+    expect(res.status).toBe(200);
+    const sessions = await res.json();
+    expect(sessions.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe('DELETE /api/admin/sessions/:token', () => {
   it('deletes a session', async () => {
-    await db.createSession({
+    await db.sessions.create({
       token: 'sess_to_delete',
       codeId: null,
       userId: null,
@@ -556,7 +568,7 @@ describe('DELETE /api/admin/sessions/:token', () => {
 
     const res = await adminReq('DELETE', '/api/admin/sessions/sess_to_delete');
     expect(res.status).toBe(200);
-    expect(await db.getSession('sess_to_delete')).toBeNull();
+    expect(await db.sessions.get('sess_to_delete')).toBeNull();
   });
 
   it('returns 404 for nonexistent session', async () => {
@@ -570,7 +582,7 @@ describe('DELETE /api/admin/sessions/:token', () => {
 describe('GET /api/admin/analytics', () => {
   beforeEach(async () => {
     const now = new Date();
-    await db.logAccess({
+    await db.accessLogs.append({
       id: 'log-1',
       sessionToken: ownerToken,
       codeId: null,
@@ -578,7 +590,7 @@ describe('GET /api/admin/analytics', () => {
       accessedAt: now,
       userAgent: 'test',
     });
-    await db.logAccess({
+    await db.accessLogs.append({
       id: 'log-2',
       sessionToken: ownerToken,
       codeId: null,
@@ -586,7 +598,7 @@ describe('GET /api/admin/analytics', () => {
       accessedAt: now,
       userAgent: 'test',
     });
-    await db.logAccess({
+    await db.accessLogs.append({
       id: 'log-3',
       sessionToken: 'sess_other',
       codeId: 'XK7F2',
@@ -663,7 +675,7 @@ describe('Validation envelope (admin)', () => {
   });
 
   it('returns validation.failed with fields[] on patchAppActive with non-boolean', async () => {
-    await db.createApp({
+    await db.apps.create({
       id: 'in-config',
       name: 'In Config',
       url: 'http://localhost:3999',

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import app from '@/index';
 import { db, hashPassword } from '@/lib';
+import { resetDatabase } from '@/lib/__tests__/resetDatabase';
 import { _testResetRateLimit } from '@/middleware';
 
 beforeAll(() => {
@@ -10,7 +11,7 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
-  await db._testReset();
+  await resetDatabase(db);
   _testResetRateLimit();
 });
 
@@ -94,7 +95,7 @@ describe('POST /api/auth/validate-code', () => {
     code: string,
     opts: { passwordHash?: string; userId?: string; expiresAt?: Date } = {},
   ) {
-    await db.createCode({
+    await db.codes.create({
       code,
       userId: opts.userId ?? null,
       appIds: ['portfolio'],
@@ -151,7 +152,7 @@ describe('POST /api/auth/validate-code', () => {
   });
 
   it('resolves a named user when code has userId', async () => {
-    await db.createUser({
+    await db.users.create({
       id: 'sarah-id',
       name: 'Sarah',
       type: 'named',
@@ -200,13 +201,13 @@ describe('GET /api/auth/session', () => {
 
   it('rejects and deletes an expired session', async () => {
     // Create a session that's already expired
-    await db.createUser({
+    await db.users.create({
       id: 'user-exp',
       name: 'Expired',
       type: 'named',
       createdAt: new Date(),
     });
-    await db.createSession({
+    await db.sessions.create({
       token: 'sess_expired',
       codeId: null,
       userId: 'user-exp',
@@ -222,18 +223,18 @@ describe('GET /api/auth/session', () => {
     expect(body.error.message).toBe('Session expired');
 
     // Session should be deleted
-    expect(await db.getSession('sess_expired')).toBeNull();
+    expect(await db.sessions.get('sess_expired')).toBeNull();
   });
 
   it('updates lastActiveAt on validation', async () => {
     const { sessionToken } = await setupOwner();
-    const before = (await db.getSession(sessionToken))!.lastActiveAt;
+    const before = (await db.sessions.get(sessionToken))!.lastActiveAt;
 
     // Small delay to ensure timestamp difference
     await new Promise((r) => setTimeout(r, 10));
 
     await app.request(`/api/auth/session?token=${sessionToken}`);
-    const after = (await db.getSession(sessionToken))!.lastActiveAt;
+    const after = (await db.sessions.get(sessionToken))!.lastActiveAt;
     expect(after.getTime()).toBeGreaterThanOrEqual(before.getTime());
   });
 });
