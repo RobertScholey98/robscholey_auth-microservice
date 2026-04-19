@@ -1,4 +1,4 @@
-import { db } from '@/lib';
+import type { Database } from '@/lib';
 import { createAnalyticsService } from './analytics.service';
 import { createAppsService } from './apps.service';
 import { createAuthService } from './auth.service';
@@ -34,26 +34,31 @@ export {
 } from './sessions.service';
 export { createUsersService, type UsersService } from './users.service';
 
-const sessions = createSessionsService(db);
-
 /**
- * Singleton bundle of the eight domain services, each wired to the shared
- * {@link db} singleton. `logging` composes {@link sessions} explicitly so
- * session-freshness rules stay defined in one place.
+ * Builds the eight-service bundle against a given {@link Database}. Called
+ * once per `createApp` invocation; the returned bundle is attached to every
+ * request via Hono context so handlers never reach for a module-level
+ * singleton.
  *
- * When A8 lands (Hono context DI), middleware will build per-request
- * instances with the same factories — the service bodies won't change.
+ * `logging` composes `sessions` explicitly so session-freshness rules stay
+ * defined in one place.
+ *
+ * @param db - The database every service in the bundle will read and write.
+ * @returns A fresh services bundle wired to the given {@link Database}.
  */
-export const services = {
-  auth: createAuthService(db),
-  codes: createCodesService(db),
-  users: createUsersService(db),
-  apps: createAppsService(db),
-  sessions,
-  analytics: createAnalyticsService(db),
-  logging: createLoggingService(db, sessions),
-  public: createPublicService(db),
-};
+export function buildServices(db: Database) {
+  const sessions = createSessionsService(db);
+  return {
+    auth: createAuthService(db),
+    codes: createCodesService(db),
+    users: createUsersService(db),
+    apps: createAppsService(db),
+    sessions,
+    analytics: createAnalyticsService(db),
+    logging: createLoggingService(db, sessions),
+    public: createPublicService(db),
+  };
+}
 
-/** Aggregate type of the singleton services bundle. */
-export type Services = typeof services;
+/** Aggregate type of the services bundle returned by {@link buildServices}. */
+export type Services = ReturnType<typeof buildServices>;

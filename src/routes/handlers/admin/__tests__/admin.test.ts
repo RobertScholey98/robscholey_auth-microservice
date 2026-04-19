@@ -1,14 +1,24 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { SignJWT } from 'jose';
-import app from '@/index';
-import { db } from '@/lib';
+import type { Hono } from 'hono';
+import type { Env } from '@/index';
+import type { PostgresDatabase } from '@/lib';
 import { resetDatabase } from '@/lib/__tests__/resetDatabase';
+import { buildTestApp } from '@/lib/__tests__/buildTestApp';
 import { _testResetRateLimit } from '@/middleware';
+
+let app: Hono<Env>;
+let db: PostgresDatabase;
 
 beforeAll(() => {
   process.env.JWT_SIGNING_SECRET = 'test-secret';
   process.env.JWT_EXPIRY = '3600';
   process.env.ALLOWED_ORIGINS = 'http://localhost:3000';
+  ({ app, database: db } = buildTestApp());
+});
+
+afterAll(async () => {
+  await db.close();
 });
 
 let ownerToken: string;

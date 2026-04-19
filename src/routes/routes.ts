@@ -1,4 +1,5 @@
-import { Hono } from 'hono';
+import type { Hono } from 'hono';
+import type { Env } from '@/index';
 import { rateLimit, adminAuth } from '@/middleware';
 
 import { setup, login, validateCode, getSession, logout } from './handlers/auth';
@@ -22,7 +23,7 @@ import { logAccess } from './handlers/logging';
 import { getAppMeta, getAppIcon } from './handlers/public';
 
 /** Configures all API routes on the given Hono app instance. */
-export function registerRoutes(app: Hono) {
+export function registerRoutes(app: Hono<Env>) {
   // Health
   app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

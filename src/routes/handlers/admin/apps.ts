@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { patchAppActiveSchema } from '@robscholey/contracts';
 import { appToWire } from '@/lib/wire';
-import { services } from '@/services';
+import type { Env } from '@/index';
 
 /**
  * Lists all registered apps, annotated with `isOrphan` (true if missing from
@@ -9,8 +9,8 @@ import { services } from '@/services';
  * Admin-only — regular auth responses filter these out entirely, so the
  * annotations are not part of the shared wire `App`.
  */
-export async function listApps(c: Context) {
-  const entries = await services.apps.listWithAdminAnnotations();
+export async function listApps(c: Context<Env>) {
+  const entries = await c.get('services').apps.listWithAdminAnnotations();
   return c.json(
     entries.map((e) => ({
       ...appToWire(e),
@@ -24,10 +24,10 @@ export async function listApps(c: Context) {
  * Toggles the `active` flag on an app. Body: `{ active: boolean }`.
  * Owner-only apps reject toggles — they're force-active on every boot sync.
  */
-export async function patchAppActive(c: Context) {
+export async function patchAppActive(c: Context<Env>) {
   const id = c.req.param('id')!;
   const body = patchAppActiveSchema.parse(await c.req.json());
-  const updated = await services.apps.toggleActive(id, body.active);
+  const updated = await c.get('services').apps.toggleActive(id, body.active);
   return c.json(appToWire(updated));
 }
 
@@ -36,8 +36,8 @@ export async function patchAppActive(c: Context) {
  * be removed from the config file first — prevents accidental loss of an app
  * that's still the committed source of truth.
  */
-export async function deleteApp(c: Context) {
+export async function deleteApp(c: Context<Env>) {
   const id = c.req.param('id')!;
-  await services.apps.removeOrphan(id);
+  await c.get('services').apps.removeOrphan(id);
   return c.json({ success: true });
 }

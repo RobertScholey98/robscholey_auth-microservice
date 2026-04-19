@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { services } from '@/services';
+import type { Env } from '@/index';
 
 /** One hour in seconds — app icons are served as immutable placeholders today. */
 const ICON_CACHE_MAX_AGE = 3600;
@@ -24,15 +24,15 @@ function renderPlaceholderSvg(name: string): string {
 }
 
 /** Returns public metadata (name, icon URL) for an active app by slug. No auth required. */
-export async function getAppMeta(c: Context) {
+export async function getAppMeta(c: Context<Env>) {
   const slug = c.req.param('slug')!;
-  return c.json(await services.public.getAppMeta(slug));
+  return c.json(await c.get('services').public.getAppMeta(slug));
 }
 
 /** Serves the app icon for a given slug. Returns a placeholder SVG for now. */
-export async function getAppIcon(c: Context) {
+export async function getAppIcon(c: Context<Env>) {
   const slug = c.req.param('slug')!;
-  const meta = await services.public.getAppMeta(slug);
+  const meta = await c.get('services').public.getAppMeta(slug);
   return c.body(renderPlaceholderSvg(meta.name), 200, {
     'Content-Type': 'image/svg+xml',
     'Cache-Control': `public, max-age=${ICON_CACHE_MAX_AGE}`,
