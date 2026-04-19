@@ -28,6 +28,11 @@ export async function patchAppActive(c: Context<Env>) {
   const id = c.req.param('id')!;
   const body = patchAppActiveSchema.parse(await c.req.json());
   const updated = await c.get('services').apps.toggleActive(id, body.active);
+  c.get('logger').info({
+    event: 'admin.apps.patch',
+    appId: id,
+    changes: { active: body.active },
+  });
   return c.json(appToWire(updated));
 }
 
@@ -39,5 +44,6 @@ export async function patchAppActive(c: Context<Env>) {
 export async function deleteApp(c: Context<Env>) {
   const id = c.req.param('id')!;
   await c.get('services').apps.removeOrphan(id);
+  c.get('logger').info({ event: 'admin.apps.delete', appId: id });
   return c.json({ success: true });
 }

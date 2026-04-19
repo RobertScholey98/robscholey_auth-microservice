@@ -31,9 +31,18 @@ export function createLoggingService(db: Database, sessionsService: SessionsServ
      * {@link SessionsService.validateActive} (including the "appId is in
      * session.appIds" check) then appends to the access log.
      *
+     * Returns the resolved `codeId` so the caller can emit it on the
+     * handler-side domain event without re-fetching the session. Nullable
+     * because a direct owner login has no code. This is the hook the
+     * future live-engagement feature (notify on first use of a code)
+     * will read from — see
+     * `AGENT_TEMP_FILES/future_features/live-recruiter-engagement.md`.
+     *
      * @param input - Session token, app id, and user-agent string.
+     * @returns The `codeId` of the session whose access was recorded, or
+     *   `null` if the session was created by a direct owner login.
      */
-    async record(input: RecordAccessInput): Promise<void> {
+    async record(input: RecordAccessInput): Promise<{ codeId: string | null }> {
       const session = await sessionsService.validateActive(input.sessionToken, input.appId);
 
       await db.accessLogs.append({
@@ -44,6 +53,8 @@ export function createLoggingService(db: Database, sessionsService: SessionsServ
         accessedAt: new Date(),
         userAgent: input.userAgent,
       });
+
+      return { codeId: session.codeId };
     },
   };
 }

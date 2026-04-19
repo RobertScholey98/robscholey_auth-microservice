@@ -12,9 +12,16 @@ export async function listSessions(c: Context<Env>) {
   return c.json(sessions.map(sessionToWire));
 }
 
-/** Deletes a session by token. Returns 404 if not found. */
+/**
+ * Deletes a session by token. Returns 404 if not found.
+ *
+ * The session token is deliberately omitted from the domain event — logs
+ * ship to operators and anything that lands in stdout is fair game for a
+ * future log store, so opaque tokens stay out of the record entirely.
+ */
 export async function deleteSession(c: Context<Env>) {
   const token = c.req.param('token')!;
   await c.get('services').sessions.delete(token);
+  c.get('logger').info({ event: 'admin.sessions.delete' });
   return c.json({ success: true });
 }

@@ -13,6 +13,7 @@ export async function listUsers(c: Context<Env>) {
 export async function createUser(c: Context<Env>) {
   const body = createUserSchema.parse(await c.req.json());
   const created = await c.get('services').users.create(body);
+  c.get('logger').info({ event: 'admin.users.create', userId: created.id });
   return c.json(userToWire(created), 201);
 }
 
@@ -21,6 +22,7 @@ export async function updateUser(c: Context<Env>) {
   const id = c.req.param('id')!;
   const body = updateUserSchema.parse(await c.req.json());
   const updated = await c.get('services').users.update(id, body);
+  c.get('logger').info({ event: 'admin.users.update', userId: id });
   return c.json(userToWire(updated));
 }
 
@@ -28,5 +30,6 @@ export async function updateUser(c: Context<Env>) {
 export async function deleteUser(c: Context<Env>) {
   const id = c.req.param('id')!;
   await c.get('services').users.delete(id);
+  c.get('logger').info({ event: 'admin.users.delete', userId: id });
   return c.json({ success: true });
 }

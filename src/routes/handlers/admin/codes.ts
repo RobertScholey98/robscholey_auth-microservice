@@ -19,6 +19,11 @@ export async function listCodes(c: Context<Env>) {
 export async function createCode(c: Context<Env>) {
   const body = createCodeSchema.parse(await c.req.json());
   const created = await c.get('services').codes.create(body);
+  c.get('logger').info({
+    event: 'admin.codes.create',
+    codeId: created.code,
+    userId: created.userId,
+  });
   return c.json(accessCodeToWire(created), 201);
 }
 
@@ -27,6 +32,7 @@ export async function updateCode(c: Context<Env>) {
   const code = c.req.param('code')!;
   const body = updateCodeSchema.parse(await c.req.json());
   const updated = await c.get('services').codes.update(code, body);
+  c.get('logger').info({ event: 'admin.codes.update', codeId: code });
   return c.json(accessCodeToWire(updated));
 }
 
@@ -34,5 +40,6 @@ export async function updateCode(c: Context<Env>) {
 export async function deleteCode(c: Context<Env>) {
   const code = c.req.param('code')!;
   await c.get('services').codes.delete(code);
+  c.get('logger').info({ event: 'admin.codes.delete', codeId: code });
   return c.json({ success: true });
 }
