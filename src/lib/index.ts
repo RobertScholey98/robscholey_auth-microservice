@@ -22,3 +22,5 @@ export {
   ConflictError,
   handleAppError,
 } from './errors';
+export { createLogger } from './logger';
+export type { Logger, CreateLoggerOptions } from './logger';

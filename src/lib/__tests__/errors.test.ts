@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
+import pino from 'pino';
 import { z } from 'zod';
 import { ErrorCode } from '@robscholey/contracts';
+import type { Logger } from '../logger';
 import {
   AppError,
   BadRequestError,
@@ -13,9 +15,19 @@ import {
   handleAppError,
 } from '../errors';
 
+/** Minimal test env exposing only the `logger` variable the error mapper reads. */
+type TestEnv = { Variables: { logger: Logger } };
+
+/** Silent logger injected on every test request so the error mapper has something to call. */
+const silentLogger: Logger = pino({ level: 'silent' });
+
 /** Builds a tiny Hono app whose only route is a throwing function. */
-function appThatThrows(err: Error): Hono {
-  const app = new Hono();
+function appThatThrows(err: Error): Hono<TestEnv> {
+  const app = new Hono<TestEnv>();
+  app.use('*', async (c, next) => {
+    c.set('logger', silentLogger);
+    await next();
+  });
   app.onError(handleAppError);
   app.get('/boom', () => {
     throw err;

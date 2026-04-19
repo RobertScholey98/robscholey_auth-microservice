@@ -1,8 +1,17 @@
-import type { Context } from 'hono';
+import type { Context, Env as HonoEnv } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { ZodError } from 'zod';
 import type { ErrorField, ErrorResponse } from '@robscholey/contracts';
 import { ErrorCode } from '@robscholey/contracts';
+import type { Logger } from './logger';
+
+/**
+ * Minimal context contract required by {@link handleAppError}. Any Hono
+ * environment that attaches a `logger` on each request satisfies it. Declared
+ * as a generic constraint rather than importing `Env` from `@/index` so the
+ * `lib` layer stays free of upward dependencies.
+ */
+type LoggerEnv = HonoEnv & { Variables: { logger: Logger } };
 
 /**
  * Base class for every error the auth service throws on purpose. Route
@@ -110,19 +119,30 @@ export class ConflictError extends AppError {
 /** HTTP 500 used when the error mapper encounters something it does not recognise. */
 const INTERNAL_STATUS: ContentfulStatusCode = 500;
 
+/** Boundary between client-error statuses (logged at info) and server-error statuses (logged at warn). */
+const SERVER_ERROR_STATUS_THRESHOLD = 500;
+
 /**
  * Central error-to-envelope mapper. Registered on the Hono app so every
  * throw from a handler or schema parse lands here and exits as the shared
  * {@link ErrorResponse} shape from `@robscholey/contracts`.
  *
+ * Log levels are keyed to severity: 4xx `AppError`s are expected flow
+ * (info), 5xx `AppError`s are unusual but recognised (warn), and anything
+ * that isn't an `AppError` is an actual bug (error).
+ *
  * Exported so tests can assert the mapping in isolation without spinning up
  * the full route tree.
  *
  * @param err - The caught error.
- * @param c - The Hono request context.
+ * @param c - The Hono request context; must carry a `logger` variable.
  * @returns A JSON response carrying the error envelope.
  */
-export function handleAppError(err: Error, c: Context): Response {
+export function handleAppError<E extends LoggerEnv = LoggerEnv>(
+  err: Error,
+  c: Context<E>,
+): Response {
+  const logger = c.get('logger');
   let appError: AppError;
   if (err instanceof ZodError) {
     const fields: ErrorField[] = err.issues.map((issue) => ({
@@ -133,8 +153,7 @@ export function handleAppError(err: Error, c: Context): Response {
   } else if (err instanceof AppError) {
     appError = err;
   } else {
-    // TODO(phase-a7): replace with the structured logger once it lands.
-    console.error('[auth] unhandled', err);
+    logger.error({ err, path: c.req.path }, 'unhandled');
     const body: ErrorResponse = {
       error: {
         code: ErrorCode.Internal,
@@ -142,6 +161,18 @@ export function handleAppError(err: Error, c: Context): Response {
       },
     };
     return c.json(body, INTERNAL_STATUS);
+  }
+
+  const logBase = {
+    event: 'request.error',
+    code: appError.code,
+    status: appError.status,
+    path: c.req.path,
+  };
+  if (appError.status >= SERVER_ERROR_STATUS_THRESHOLD) {
+    logger.warn({ ...logBase, err: appError }, appError.message);
+  } else {
+    logger.info(logBase, appError.message);
   }
 
   const body: ErrorResponse = {

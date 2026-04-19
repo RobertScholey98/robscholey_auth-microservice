@@ -2,12 +2,17 @@ import { serve } from '@hono/node-server';
 import migrate from 'node-pg-migrate';
 import { Pool } from 'pg';
 import { createApp } from './index';
-import { PostgresDatabase } from './lib';
+import { PostgresDatabase, createLogger } from './lib';
 import { loadAppsConfig } from './lib/appsConfig';
 import { seed } from './seed';
 import { buildServices } from './services';
 
+/** Port the auth service binds to locally and inside the container. */
+const AUTH_SERVICE_PORT = 3001;
+
 async function main() {
+  const logger = createLogger({ name: 'auth' });
+
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error(
@@ -23,7 +28,7 @@ async function main() {
     );
   }
 
-  console.log('  Running migrations...');
+  logger.info({ event: 'boot.migrations.start' });
   await migrate({
     databaseUrl,
     dir: 'migrations',
@@ -31,7 +36,7 @@ async function main() {
     migrationsTable: 'pgmigrations',
     log: () => {},
   });
-  console.log('  ✓ Migrations up to date');
+  logger.info({ event: 'boot.migrations.complete' });
 
   const database = new PostgresDatabase(new Pool({ connectionString: databaseUrl }));
   // Boot-time sync runs outside the HTTP layer, so it builds its own services
@@ -42,19 +47,23 @@ async function main() {
   const config = await loadAppsConfig();
   await bootServices.users.ensureOwner(adminUsername, adminPassword);
   const { synced, orphans } = await bootServices.apps.syncFromConfig(config);
-  console.log(
-    `  ✓ Boot sync: owner resynced, ${synced} app(s) from config, orphans: ${orphans.length ? orphans.join(', ') : 'none'}`,
+  logger.info(
+    { event: 'boot.sync.complete', synced, orphans },
+    'Boot sync: owner resynced, apps from config, orphans listed',
   );
 
-  await seed(database);
+  await seed(database, logger);
 
-  const app = createApp(database);
-  serve({ fetch: app.fetch, port: 3001 }, (info) => {
-    console.log(`Auth service running at http://localhost:${info.port}`);
+  const app = createApp(database, logger);
+  serve({ fetch: app.fetch, port: AUTH_SERVICE_PORT }, (info) => {
+    logger.info({ event: 'boot.server.listening', port: info.port });
   });
 }
 
 main().catch((err) => {
-  console.error('Failed to start auth service:', err);
+  // Root logger isn't in scope here, so construct a one-shot logger for the
+  // fatal line. Keeping the side effect (process.exit) colocated with its log
+  // means nothing escapes to stderr unstructured.
+  createLogger({ name: 'auth' }).fatal({ err }, 'Failed to start auth service');
   process.exit(1);
 });

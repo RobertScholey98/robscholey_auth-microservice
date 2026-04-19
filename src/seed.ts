@@ -1,4 +1,4 @@
-import type { Database } from '@/lib';
+import type { Database, Logger } from '@/lib';
 import { hashPassword } from '@/lib';
 
 /**
@@ -10,15 +10,18 @@ import { hashPassword } from '@/lib';
  * The owner user and the apps list are NOT seeded here — they're handled by
  * `users.service.ensureOwner` and `apps.service.syncFromConfig` on every
  * boot, including prod.
+ *
+ * @param db - Database to seed.
+ * @param logger - Logger used to emit `boot.seed.*` events.
  */
-export async function seed(db: Database): Promise<void> {
+export async function seed(db: Database, logger: Logger): Promise<void> {
   if (process.env.NODE_ENV === 'production') return;
 
   const users = await db.users.list();
   const hasNonOwner = users.some((u) => u.type !== 'owner');
   if (hasNonOwner) return;
 
-  console.log('  Seeding dev scaffolding...');
+  logger.info({ event: 'boot.seed.start' });
 
   const sarah = await db.users.create({
     id: crypto.randomUUID(),
@@ -57,5 +60,5 @@ export async function seed(db: Database): Promise<void> {
     label: 'XYZ Corp - test code',
   });
 
-  console.log('  ✓ Dev scaffolding seeded (Sarah + TEST/SARAH/XYZ codes)');
+  logger.info({ event: 'boot.seed.complete' });
 }
