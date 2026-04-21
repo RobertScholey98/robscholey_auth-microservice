@@ -29,7 +29,14 @@ export function createLoggingService(db: Database, sessionsService: SessionsServ
     /**
      * Records a single access event. Delegates session validity to
      * {@link SessionsService.validateActive} (including the "appId is in
-     * session.appIds" check) then appends to the access log.
+     * session.appIds" check) then appends to the access log and refreshes
+     * the session's `lastActiveAt` timestamp.
+     *
+     * The `lastActiveAt` refresh is what makes presence derivation honest:
+     * the shell pings this endpoint every time an iframe loads, so a
+     * thin "session last seen within N minutes" query in the admin
+     * presence endpoint reflects actual activity rather than frozen
+     * create-time.
      *
      * Returns the resolved `codeId` so the caller can emit it on the
      * handler-side domain event without re-fetching the session. Nullable
@@ -44,15 +51,18 @@ export function createLoggingService(db: Database, sessionsService: SessionsServ
      */
     async record(input: RecordAccessInput): Promise<{ codeId: string | null }> {
       const session = await sessionsService.validateActive(input.sessionToken, input.appId);
+      const now = new Date();
 
       await db.accessLogs.append({
         id: crypto.randomUUID(),
         sessionToken: input.sessionToken,
         codeId: session.codeId,
         appId: input.appId,
-        accessedAt: new Date(),
+        accessedAt: now,
         userAgent: input.userAgent,
       });
+
+      await db.sessions.update(input.sessionToken, { lastActiveAt: now });
 
       return { codeId: session.codeId };
     },

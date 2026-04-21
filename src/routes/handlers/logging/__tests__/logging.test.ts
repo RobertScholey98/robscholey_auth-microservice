@@ -64,6 +64,21 @@ describe('POST /api/log-access', () => {
     expect(logs[0].appId).toBe('portfolio');
   });
 
+  it('refreshes the session last_active_at timestamp', async () => {
+    const before = await db.sessions.get(sessionToken);
+    expect(before).not.toBeNull();
+    // Wait one ms so the comparison can detect a fresh timestamp even when
+    // the setup session was created within the same millisecond.
+    await new Promise((r) => setTimeout(r, 5));
+
+    const res = await app.request('/api/log-access', json({ sessionToken, appId: 'portfolio' }));
+    expect(res.status).toBe(200);
+
+    const after = await db.sessions.get(sessionToken);
+    expect(after).not.toBeNull();
+    expect(after!.lastActiveAt.getTime()).toBeGreaterThan(before!.lastActiveAt.getTime());
+  });
+
   it('rejects missing fields', async () => {
     const res = await app.request('/api/log-access', json({ sessionToken }));
     expect(res.status).toBe(400);
