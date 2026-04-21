@@ -1,4 +1,7 @@
 import type { Context } from 'hono';
+import { sendPublicMessageSchema } from '@robscholey/contracts';
+import type { MessageNewEvent, SendPublicMessageResponse } from '@robscholey/contracts';
+import { messageToWire, threadToWire } from '@/lib/wire';
 import type { Env } from '@/index';
 
 /** One hour in seconds — app icons are served as immutable placeholders today. */
@@ -37,4 +40,39 @@ export async function getAppIcon(c: Context<Env>) {
     'Content-Type': 'image/svg+xml',
     'Cache-Control': `public, max-age=${ICON_CACHE_MAX_AGE}`,
   });
+}
+
+/**
+ * `POST /public/messages` — inbound contact-drawer submission. Validates the
+ * payload, upserts the thread by email, appends the inbound message, and
+ * fans the write out as a `message-new` event so any live admin tab sees it
+ * without a poll. The route is rate-limited at the middleware layer to keep
+ * the contact form from being spammed.
+ */
+export async function sendPublicMessage(c: Context<Env>) {
+  const body = sendPublicMessageSchema.parse(await c.req.json());
+  const { thread, message } = await c.get('services').messaging.sendPublic(body);
+
+  const event: MessageNewEvent = {
+    type: 'message-new',
+    message: messageToWire(message),
+    thread: threadToWire(thread),
+  };
+  c.get('events').emit(event);
+
+  c.get('logger').info(
+    {
+      event: 'public.messages.send',
+      threadId: thread.id,
+      messageId: message.id,
+      contactEmail: thread.contactEmail,
+    },
+    'inbound message',
+  );
+
+  const response: SendPublicMessageResponse = {
+    threadId: thread.id,
+    messageId: message.id,
+  };
+  return c.json(response, 201);
 }

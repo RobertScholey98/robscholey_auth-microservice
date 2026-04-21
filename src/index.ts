@@ -42,6 +42,13 @@ export interface CreateAppOptions {
    * (`src/dev.ts`) passes `true`.
    */
   backgroundTickers?: boolean;
+  /**
+   * Optional pre-built {@link EventsBus} injected into the app. Handler
+   * tests subscribe to it directly to assert on emitted SSE events without
+   * opening a real stream. Left unset in production — {@link createApp}
+   * constructs a private bus per invocation.
+   */
+  events?: EventsBus;
 }
 
 /**
@@ -65,7 +72,7 @@ export function createApp(
   logger: Logger,
   options: CreateAppOptions = {},
 ): Hono<Env> {
-  const events = createEventsBus();
+  const events = options.events ?? createEventsBus();
   const services = buildServices(database);
 
   const app = new Hono<Env>().basePath('/api');

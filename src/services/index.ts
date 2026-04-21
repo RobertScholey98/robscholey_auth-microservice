@@ -4,6 +4,7 @@ import { createAppsService } from './apps.service';
 import { createAuthService } from './auth.service';
 import { createCodesService } from './codes.service';
 import { createLoggingService } from './logging.service';
+import { createMessagingService } from './messaging.service';
 import { createPresenceService } from './presence.service';
 import { createPublicService } from './public.service';
 import { createSessionsService } from './sessions.service';
@@ -27,6 +28,11 @@ export {
   type LoggingService,
   type RecordAccessInput,
 } from './logging.service';
+export {
+  createMessagingService,
+  type MessagingService,
+  type SendMessageResult,
+} from './messaging.service';
 export { createPresenceService, type PresenceService } from './presence.service';
 export { createPublicService, type PublicService } from './public.service';
 export {
@@ -60,6 +66,7 @@ export function buildServices(db: Database) {
     logging: createLoggingService(db, sessions),
     presence: createPresenceService(db),
     public: createPublicService(db),
+    messaging: createMessagingService(db),
   };
 }
 

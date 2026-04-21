@@ -4,8 +4,18 @@ import type {
   AccessCode as WireAccessCode,
   Session as WireSession,
   AccessLog as WireAccessLog,
+  Thread as WireThread,
+  Message as WireMessage,
 } from '@robscholey/contracts';
-import type { App, User, AccessCode, Session, AccessLog } from '@/types';
+import type {
+  App,
+  User,
+  AccessCode,
+  Session,
+  AccessLog,
+  Thread,
+  Message,
+} from '@/types';
 
 /**
  * Maps a domain {@link App} to its wire shape. Serialises the optional
@@ -102,5 +112,44 @@ export function accessLogToWire(l: AccessLog): WireAccessLog {
     appId: l.appId,
     accessedAt: l.accessedAt.toISOString(),
     userAgent: l.userAgent,
+  };
+}
+
+/**
+ * Maps a domain {@link Thread} to its wire shape. Serialises both timestamp
+ * fields to ISO 8601 strings.
+ *
+ * @param t - The domain thread record.
+ * @returns The wire-safe thread shape.
+ */
+export function threadToWire(t: Thread): WireThread {
+  return {
+    id: t.id,
+    contactEmail: t.contactEmail,
+    contactName: t.contactName,
+    unreadCount: t.unreadCount,
+    lastMessageAt: t.lastMessageAt.toISOString(),
+    lastMessagePreview: t.lastMessagePreview,
+    lastMessageDirection: t.lastMessageDirection,
+    createdAt: t.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Maps a domain {@link Message} to its wire shape. Serialises `createdAt`
+ * to an ISO 8601 string.
+ *
+ * @param m - The domain message record.
+ * @returns The wire-safe message shape.
+ */
+export function messageToWire(m: Message): WireMessage {
+  return {
+    id: m.id,
+    threadId: m.threadId,
+    direction: m.direction,
+    body: m.body,
+    sessionToken: m.sessionToken,
+    codeId: m.codeId,
+    createdAt: m.createdAt.toISOString(),
   };
 }

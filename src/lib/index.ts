@@ -7,6 +7,8 @@ export type {
   SessionsRepo,
   AccessLogsRepo,
   AccessLogFilters,
+  ThreadsRepo,
+  MessagesRepo,
 } from './db';
 export { hashPassword, comparePassword } from './password';
 export { createSessionToken } from './session';

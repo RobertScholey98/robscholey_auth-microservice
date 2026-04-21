@@ -21,9 +21,13 @@ import {
   getAnalytics,
   getPresence,
   stream,
+  listThreads,
+  getThread,
+  replyToThread,
+  markThreadRead,
 } from './handlers/admin';
 import { logAccess } from './handlers/logging';
-import { getAppMeta, getAppIcon } from './handlers/public';
+import { getAppMeta, getAppIcon, sendPublicMessage } from './handlers/public';
 
 /** Configures all API routes on the given Hono app instance. */
 export function registerRoutes(app: Hono<Env>) {
@@ -40,6 +44,9 @@ export function registerRoutes(app: Hono<Env>) {
   // Public
   app.get('/apps/:slug/meta', getAppMeta);
   app.get('/app-icon/:slug', getAppIcon);
+  // Contact-drawer submissions — shares the per-IP rate-limit bucket with
+  // /auth/login so a single spammer can't flood the owner's inbox.
+  app.post('/public/messages', rateLimit, sendPublicMessage);
 
   // Logging
   app.post('/log-access', logAccess);
@@ -79,6 +86,14 @@ export function registerRoutes(app: Hono<Env>) {
 
   //  Stream (SSE — JWT accepted on the query string via adminAuth)
   app.get('/admin/stream', stream);
+
+  //  Threads / messaging — read the thread list, open a chat, reply, mark read.
+  //  Inbound sends from the shell contact drawer live on the unauthenticated
+  //  /public surface (see below) so anonymous visitors can reach the owner.
+  app.get('/admin/threads', listThreads);
+  app.get('/admin/threads/:id', getThread);
+  app.post('/admin/threads/:id/messages', replyToThread);
+  app.post('/admin/threads/:id/read', markThreadRead);
 
   //  Test-only (404 unless ENABLE_TEST_ENDPOINTS=1). Used by the Playwright
   //  E2E harness to drive presence-transition scenarios without wall-clock

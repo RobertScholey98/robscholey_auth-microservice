@@ -1,1 +1,1 @@
-export { getAppMeta, getAppIcon } from './public';
+export { getAppMeta, getAppIcon, sendPublicMessage } from './public';
