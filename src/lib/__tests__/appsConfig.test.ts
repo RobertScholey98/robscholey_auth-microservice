@@ -213,4 +213,41 @@ describe('loadAppsConfig', () => {
     });
     await expect(loadAppsConfig()).rejects.toThrow(/lastUpdatedAt/);
   });
+
+  it('substitutes ${VAR} placeholders in URL fields at load time', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'admin',
+          name: 'Admin',
+          url: '${ADMIN_URL}',
+          iconUrl: '',
+          description: '',
+        },
+      ],
+    });
+    process.env.ADMIN_URL = 'http://localhost:3005';
+    try {
+      const [entry] = await loadAppsConfig();
+      expect(entry.url).toBe('http://localhost:3005');
+    } finally {
+      delete process.env.ADMIN_URL;
+    }
+  });
+
+  it('throws a pointing error when a URL placeholder is unset', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'admin',
+          name: 'Admin',
+          url: '${ADMIN_URL}',
+          iconUrl: '',
+          description: '',
+        },
+      ],
+    });
+    delete process.env.ADMIN_URL;
+    await expect(loadAppsConfig()).rejects.toThrow(/ADMIN_URL/);
+  });
 });

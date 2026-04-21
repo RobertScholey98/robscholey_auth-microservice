@@ -3,6 +3,35 @@ import { readFile } from 'node:fs/promises';
 /** Status variants accepted by the selector-metadata field. */
 const STATUS_VARIANTS = ['live', 'dev', 'soon', 'paused'] as const;
 
+/**
+ * Matches `${VAR_NAME}` placeholders inside string values. Supports plain
+ * `A-Z 0-9 _` identifiers — broad enough for the environment variable names
+ * we use, tight enough to stay out of punctuation that belongs in URLs.
+ */
+const ENV_REF_PATTERN = /\$\{([A-Z0-9_]+)\}/g;
+
+/**
+ * Substitutes `${VAR}` placeholders with the value of the matching env var.
+ * Unset vars throw so misconfiguration fails loudly at boot rather than
+ * silently resolving to `undefined`. No-ops on strings without placeholders.
+ *
+ * @param value - The raw string, typically an entry URL from `appsConfig.json`.
+ * @param field - Diagnostic label used in the thrown message.
+ * @returns The resolved string with all placeholders substituted.
+ * @throws If any referenced env var is unset.
+ */
+function substituteEnv(value: string, field: string): string {
+  return value.replace(ENV_REF_PATTERN, (_match, name: string) => {
+    const resolved = process.env[name];
+    if (resolved === undefined || resolved === '') {
+      throw new Error(
+        `appsConfig.json: ${field} references \${${name}} but that env var is unset`,
+      );
+    }
+    return resolved;
+  });
+}
+
 /** A single entry in `appsConfig.json` — structural fields only, no runtime state. */
 export interface AppConfig {
   id: string;
@@ -66,7 +95,7 @@ function validate(data: unknown): AppConfig[] {
     return {
       id: e.id as string,
       name: e.name as string,
-      url: e.url as string,
+      url: substituteEnv(e.url as string, `apps[${i}].url`),
       iconUrl: e.iconUrl as string,
       description: e.description as string,
       ...(e.ownerOnly === true ? { ownerOnly: true } : {}),
@@ -81,9 +110,14 @@ function validate(data: unknown): AppConfig[] {
 }
 
 /**
- * Loads and validates the apps config from `APPS_CONFIG_PATH`.
- * Throws if the env var is unset, the file is missing, or the shape is wrong.
- * Caches on first read — call {@link _testReset} to clear.
+ * Loads and validates the apps config from `APPS_CONFIG_PATH`. URL fields may
+ * contain `${ENV_VAR}` placeholders — they&rsquo;re resolved against
+ * `process.env` at load time so the same file can drive dev, docker-dev, and
+ * prod deployments without per-environment forks.
+ *
+ * Throws if the env var is unset, the file is missing, the shape is wrong,
+ * or a URL placeholder references an undefined env var. Caches on first
+ * read — call {@link _testReset} to clear.
  */
 export async function loadAppsConfig(): Promise<AppConfig[]> {
   if (cached) return cached;
