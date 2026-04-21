@@ -12,6 +12,7 @@ COPY robscholey_auth-microservice/package.json ./robscholey_auth-microservice/
 COPY robscholey_shell-application/package.json ./robscholey_shell-application/
 COPY robscholey_shell-kit/package.json ./robscholey_shell-kit/
 COPY robscholey_template-child-nextJS/package.json ./robscholey_template-child-nextJS/
+COPY packages/contracts/package.json ./packages/contracts/
 
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
@@ -27,6 +28,7 @@ ENV PORT=3001
 RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs hono
 
 COPY --from=deps --chown=hono:nodejs /app ./
+COPY --chown=hono:nodejs packages/contracts ./packages/contracts
 COPY --chown=hono:nodejs robscholey_auth-microservice/src ./robscholey_auth-microservice/src
 COPY --chown=hono:nodejs robscholey_auth-microservice/migrations ./robscholey_auth-microservice/migrations
 COPY --chown=hono:nodejs robscholey_auth-microservice/tsconfig.json ./robscholey_auth-microservice/tsconfig.json
