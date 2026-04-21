@@ -188,7 +188,10 @@ export function createAuthService(db: Database) {
     /**
      * Validates a session token and returns the user, visible apps, and a
      * fresh JWT. Expired sessions are deleted and rejected. Owner sessions
-     * are elevated to all-apps visibility at validation time.
+     * are elevated to all-apps visibility at validation time. When the
+     * session was minted from an access code with an expiry, the resolved
+     * `codeExpiresAt` rides along so the shell can render a countdown
+     * without a second round-trip.
      *
      * @param token - Session token from the query string.
      */
@@ -220,11 +223,20 @@ export function createAuthService(db: Database) {
         type: user?.type ?? 'anonymous',
       });
 
+      let codeExpiresAt: string | undefined;
+      if (session.codeId) {
+        const code = await db.codes.get(session.codeId);
+        if (code?.expiresAt) {
+          codeExpiresAt = code.expiresAt.toISOString();
+        }
+      }
+
       return {
         sessionToken: token,
         jwt,
         user: user ? userToWire(user) : null,
         apps: apps.map(appToWire),
+        ...(codeExpiresAt !== undefined ? { codeExpiresAt } : {}),
       };
     },
 

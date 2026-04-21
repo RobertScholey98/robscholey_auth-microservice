@@ -4,11 +4,18 @@ import type { App, User, AccessCode, Session, AccessLog } from '@/types';
 export type Row = Record<string, unknown>;
 
 /**
- * Maps a `SELECT * FROM apps` row to the domain {@link App} type.
+ * Maps a `SELECT * FROM apps` row to the domain {@link App} type. Nullable
+ * metadata columns (`version`, `last_updated_at`, `status_variant`,
+ * `visual_key`) collapse to `undefined` on the domain side — optional on the
+ * type, absent on the wire.
  * @param row - Raw Postgres row.
  * @returns The domain app record.
  */
 export function mapApp(row: Row): App {
+  const version = (row.version as string | null) ?? undefined;
+  const lastUpdatedAt = (row.last_updated_at as Date | null) ?? undefined;
+  const statusVariant = (row.status_variant as App['statusVariant'] | null) ?? undefined;
+  const visualKey = (row.visual_key as string | null) ?? undefined;
   return {
     id: row.id as string,
     name: row.name as string,
@@ -16,6 +23,10 @@ export function mapApp(row: Row): App {
     iconUrl: row.icon_url as string,
     description: row.description as string,
     active: row.active as boolean,
+    ...(version !== undefined ? { version } : {}),
+    ...(lastUpdatedAt !== undefined ? { lastUpdatedAt } : {}),
+    ...(statusVariant !== undefined ? { statusVariant } : {}),
+    ...(visualKey !== undefined ? { visualKey } : {}),
   };
 }
 

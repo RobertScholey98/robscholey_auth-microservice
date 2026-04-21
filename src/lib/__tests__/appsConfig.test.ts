@@ -157,4 +157,60 @@ describe('loadAppsConfig', () => {
     });
     await expect(loadAppsConfig()).rejects.toThrow(/ownerOnly/);
   });
+
+  it('parses optional selector-metadata fields when set', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'demo',
+          name: 'Demo',
+          url: '',
+          iconUrl: '',
+          description: '',
+          version: '0.3.0',
+          lastUpdatedAt: '2026-04-18T00:00:00.000Z',
+          statusVariant: 'live',
+          visualKey: 'bars',
+        },
+      ],
+    });
+
+    const [entry] = await loadAppsConfig();
+    expect(entry.version).toBe('0.3.0');
+    expect(entry.lastUpdatedAt).toBe('2026-04-18T00:00:00.000Z');
+    expect(entry.statusVariant).toBe('live');
+    expect(entry.visualKey).toBe('bars');
+  });
+
+  it('rejects unknown statusVariant values', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'x',
+          name: 'X',
+          url: '',
+          iconUrl: '',
+          description: '',
+          statusVariant: 'retired',
+        },
+      ],
+    });
+    await expect(loadAppsConfig()).rejects.toThrow(/statusVariant/);
+  });
+
+  it('rejects non-ISO lastUpdatedAt strings', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'x',
+          name: 'X',
+          url: '',
+          iconUrl: '',
+          description: '',
+          lastUpdatedAt: 'yesterday',
+        },
+      ],
+    });
+    await expect(loadAppsConfig()).rejects.toThrow(/lastUpdatedAt/);
+  });
 });

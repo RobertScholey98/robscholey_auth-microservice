@@ -100,8 +100,19 @@ export class PostgresAppsRepo implements AppsRepo {
   /** Creates a new app record. */
   async create(app: App): Promise<App> {
     await this.pool.query(
-      'INSERT INTO apps (id, name, url, icon_url, description, active) VALUES ($1, $2, $3, $4, $5, $6)',
-      [app.id, app.name, app.url, app.iconUrl, app.description, app.active],
+      'INSERT INTO apps (id, name, url, icon_url, description, active, version, last_updated_at, status_variant, visual_key) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+      [
+        app.id,
+        app.name,
+        app.url,
+        app.iconUrl,
+        app.description,
+        app.active,
+        app.version ?? null,
+        app.lastUpdatedAt ?? null,
+        app.statusVariant ?? null,
+        app.visualKey ?? null,
+      ],
     );
     return app;
   }
@@ -112,8 +123,19 @@ export class PostgresAppsRepo implements AppsRepo {
     if (!existing) return null;
     const merged: App = { ...existing, ...data, id };
     await this.pool.query(
-      'UPDATE apps SET name = $2, url = $3, icon_url = $4, description = $5, active = $6 WHERE id = $1',
-      [id, merged.name, merged.url, merged.iconUrl, merged.description, merged.active],
+      'UPDATE apps SET name = $2, url = $3, icon_url = $4, description = $5, active = $6, version = $7, last_updated_at = $8, status_variant = $9, visual_key = $10 WHERE id = $1',
+      [
+        id,
+        merged.name,
+        merged.url,
+        merged.iconUrl,
+        merged.description,
+        merged.active,
+        merged.version ?? null,
+        merged.lastUpdatedAt ?? null,
+        merged.statusVariant ?? null,
+        merged.visualKey ?? null,
+      ],
     );
     return merged;
   }

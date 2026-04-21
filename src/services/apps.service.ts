@@ -131,6 +131,12 @@ export function createAppsService(db: Database) {
 
       for (const entry of config) {
         const ownerOnly = entry.ownerOnly ?? false;
+        const selectorMetadata = {
+          version: entry.version,
+          lastUpdatedAt: entry.lastUpdatedAt ? new Date(entry.lastUpdatedAt) : undefined,
+          statusVariant: entry.statusVariant,
+          visualKey: entry.visualKey,
+        };
         const existing = await db.apps.get(entry.id);
         if (existing) {
           await db.apps.update(entry.id, {
@@ -138,10 +144,19 @@ export function createAppsService(db: Database) {
             url: entry.url,
             iconUrl: entry.iconUrl,
             description: entry.description,
+            ...selectorMetadata,
             ...(ownerOnly ? { active: true } : {}),
           });
         } else {
-          await db.apps.create({ ...entry, active: ownerOnly });
+          await db.apps.create({
+            id: entry.id,
+            name: entry.name,
+            url: entry.url,
+            iconUrl: entry.iconUrl,
+            description: entry.description,
+            active: ownerOnly,
+            ...selectorMetadata,
+          });
         }
       }
 

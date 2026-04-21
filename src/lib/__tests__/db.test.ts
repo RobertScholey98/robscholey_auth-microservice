@@ -61,6 +61,18 @@ describe('InMemoryDatabase — Apps', () => {
   it('returns null when updating nonexistent app', async () => {
     expect(await db.apps.update('nope', { name: 'x' })).toBeNull();
   });
+
+  it('round-trips selector metadata fields', async () => {
+    const withMetadata: App = {
+      ...app,
+      version: '0.3.0',
+      lastUpdatedAt: new Date('2026-04-18T00:00:00.000Z'),
+      statusVariant: 'live',
+      visualKey: 'bars',
+    };
+    await db.apps.create(withMetadata);
+    expect(await db.apps.get('portfolio')).toEqual(withMetadata);
+  });
 });
 
 describe('InMemoryDatabase — Users', () => {

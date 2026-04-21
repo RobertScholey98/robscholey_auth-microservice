@@ -71,6 +71,32 @@ describe('PostgresDatabase — Apps', () => {
   it('returns null when updating nonexistent app', async () => {
     expect(await db.apps.update('nope', { name: 'x' })).toBeNull();
   });
+
+  it('round-trips selector metadata fields', async () => {
+    const withMetadata: App = {
+      ...app,
+      version: '0.3.0',
+      lastUpdatedAt: new Date('2026-04-18T00:00:00.000Z'),
+      statusVariant: 'live',
+      visualKey: 'bars',
+    };
+    await db.apps.create(withMetadata);
+    expect(await db.apps.get('portfolio')).toEqual(withMetadata);
+  });
+
+  it('updates selector metadata fields', async () => {
+    await db.apps.create(app);
+    const updated = await db.apps.update('portfolio', {
+      version: '0.4.0',
+      lastUpdatedAt: new Date('2026-05-01T00:00:00.000Z'),
+      statusVariant: 'dev',
+      visualKey: 'ascii',
+    });
+    expect(updated!.version).toBe('0.4.0');
+    expect(updated!.lastUpdatedAt).toEqual(new Date('2026-05-01T00:00:00.000Z'));
+    expect(updated!.statusVariant).toBe('dev');
+    expect(updated!.visualKey).toBe('ascii');
+  });
 });
 
 describe('PostgresDatabase — Users', () => {

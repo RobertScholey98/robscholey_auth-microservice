@@ -247,6 +247,56 @@ describe('GET /api/auth/session', () => {
     const after = (await db.sessions.get(sessionToken))!.lastActiveAt;
     expect(after.getTime()).toBeGreaterThanOrEqual(before.getTime());
   });
+
+  it('omits codeExpiresAt for owner sessions', async () => {
+    const { sessionToken } = await setupOwner();
+    const res = await app.request(`/api/auth/session?token=${sessionToken}`);
+    const body = await res.json();
+    expect(body.codeExpiresAt).toBeUndefined();
+  });
+
+  it('returns codeExpiresAt when the session was minted from a code with expiry', async () => {
+    const expiresAt = new Date('2030-01-01T00:00:00.000Z');
+    await db.codes.create({
+      code: 'XK7F2',
+      userId: null,
+      appIds: ['portfolio'],
+      passwordHash: null,
+      expiresAt,
+      createdAt: new Date(),
+      label: 'expiring',
+    });
+    const validate = await app.request(
+      '/api/auth/validate-code',
+      json({ code: 'XK7F2' }),
+    );
+    const { sessionToken } = await validate.json();
+
+    const res = await app.request(`/api/auth/session?token=${sessionToken}`);
+    const body = await res.json();
+    expect(body.codeExpiresAt).toBe(expiresAt.toISOString());
+  });
+
+  it('omits codeExpiresAt when the session code has no expiry', async () => {
+    await db.codes.create({
+      code: 'XNOEX',
+      userId: null,
+      appIds: ['portfolio'],
+      passwordHash: null,
+      expiresAt: null,
+      createdAt: new Date(),
+      label: 'no expiry',
+    });
+    const validate = await app.request(
+      '/api/auth/validate-code',
+      json({ code: 'XNOEX' }),
+    );
+    const { sessionToken } = await validate.json();
+
+    const res = await app.request(`/api/auth/session?token=${sessionToken}`);
+    const body = await res.json();
+    expect(body.codeExpiresAt).toBeUndefined();
+  });
 });
 
 describe('POST /api/auth/logout', () => {

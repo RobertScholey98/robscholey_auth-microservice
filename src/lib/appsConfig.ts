@@ -1,5 +1,8 @@
 import { readFile } from 'node:fs/promises';
 
+/** Status variants accepted by the selector-metadata field. */
+const STATUS_VARIANTS = ['live', 'dev', 'soon', 'paused'] as const;
+
 /** A single entry in `appsConfig.json` — structural fields only, no runtime state. */
 export interface AppConfig {
   id: string;
@@ -9,6 +12,14 @@ export interface AppConfig {
   description: string;
   /** When true, the app is hidden from non-owner users in shell-facing responses. */
   ownerOnly?: boolean;
+  /** Display-only version string surfaced by the shell selector (e.g. `0.3.0`). */
+  version?: string;
+  /** ISO 8601 timestamp of the app's last meaningful update. */
+  lastUpdatedAt?: string;
+  /** Lifecycle hint consumed by the shell selector. */
+  statusVariant?: (typeof STATUS_VARIANTS)[number];
+  /** Opaque key the shell maps to a local visual component. */
+  visualKey?: string;
 }
 
 let cached: AppConfig[] | null = null;
@@ -34,6 +45,24 @@ function validate(data: unknown): AppConfig[] {
     if (e.ownerOnly !== undefined && typeof e.ownerOnly !== 'boolean') {
       throw new Error(`appsConfig.json: apps[${i}].ownerOnly must be a boolean when set`);
     }
+    for (const field of ['version', 'lastUpdatedAt', 'visualKey'] as const) {
+      if (e[field] !== undefined && typeof e[field] !== 'string') {
+        throw new Error(`appsConfig.json: apps[${i}].${field} must be a string when set`);
+      }
+    }
+    if (e.lastUpdatedAt !== undefined && Number.isNaN(Date.parse(e.lastUpdatedAt as string))) {
+      throw new Error(
+        `appsConfig.json: apps[${i}].lastUpdatedAt must be an ISO 8601 timestamp when set`,
+      );
+    }
+    if (
+      e.statusVariant !== undefined &&
+      !STATUS_VARIANTS.includes(e.statusVariant as (typeof STATUS_VARIANTS)[number])
+    ) {
+      throw new Error(
+        `appsConfig.json: apps[${i}].statusVariant must be one of ${STATUS_VARIANTS.join(', ')} when set`,
+      );
+    }
     return {
       id: e.id as string,
       name: e.name as string,
@@ -41,6 +70,12 @@ function validate(data: unknown): AppConfig[] {
       iconUrl: e.iconUrl as string,
       description: e.description as string,
       ...(e.ownerOnly === true ? { ownerOnly: true } : {}),
+      ...(e.version !== undefined ? { version: e.version as string } : {}),
+      ...(e.lastUpdatedAt !== undefined ? { lastUpdatedAt: e.lastUpdatedAt as string } : {}),
+      ...(e.statusVariant !== undefined
+        ? { statusVariant: e.statusVariant as (typeof STATUS_VARIANTS)[number] }
+        : {}),
+      ...(e.visualKey !== undefined ? { visualKey: e.visualKey as string } : {}),
     };
   });
 }

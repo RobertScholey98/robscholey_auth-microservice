@@ -8,10 +8,10 @@ import type {
 import type { App, User, AccessCode, Session, AccessLog } from '@/types';
 
 /**
- * Maps a domain {@link App} to its wire shape. Currently a structural pass-through
- * — domain and wire `App` happen to coincide — but the indirection is kept so
- * future domain-only fields (audit timestamps, soft-delete flags) can be added
- * without touching every handler.
+ * Maps a domain {@link App} to its wire shape. Serialises the optional
+ * `lastUpdatedAt` date to ISO 8601 so every downstream consumer sees the
+ * same string shape, and forwards the remaining selector-metadata fields
+ * as-is when set.
  *
  * @param a - The domain app record.
  * @returns The wire-safe app shape.
@@ -24,6 +24,10 @@ export function appToWire(a: App): WireApp {
     iconUrl: a.iconUrl,
     description: a.description,
     active: a.active,
+    ...(a.version !== undefined ? { version: a.version } : {}),
+    ...(a.lastUpdatedAt !== undefined ? { lastUpdatedAt: a.lastUpdatedAt.toISOString() } : {}),
+    ...(a.statusVariant !== undefined ? { statusVariant: a.statusVariant } : {}),
+    ...(a.visualKey !== undefined ? { visualKey: a.visualKey } : {}),
   };
 }
 

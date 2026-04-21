@@ -40,7 +40,14 @@ describe('apps.service.syncFromConfig', () => {
   });
 
   it('updates structural fields but preserves active flag', async () => {
-    await db.apps.create({ ...config[0], name: 'Old Name', active: true });
+    await db.apps.create({
+      id: config[0].id,
+      name: 'Old Name',
+      url: config[0].url,
+      iconUrl: config[0].iconUrl,
+      description: config[0].description,
+      active: true,
+    });
 
     await service.syncFromConfig([{ ...config[0], name: 'New Name' }]);
 
@@ -120,6 +127,63 @@ describe('apps.service.syncFromConfig', () => {
 
     const app = await db.apps.get('admin');
     expect(app!.active).toBe(true);
+  });
+
+  it('round-trips selector metadata from config to DB on insert', async () => {
+    await service.syncFromConfig([
+      {
+        id: 'demo',
+        name: 'Demo',
+        url: 'http://localhost:3002',
+        iconUrl: '',
+        description: 'Demo app',
+        version: '0.4.0',
+        lastUpdatedAt: '2026-03-10T12:00:00.000Z',
+        statusVariant: 'dev',
+        visualKey: 'bars',
+      },
+    ]);
+
+    const app = await db.apps.get('demo');
+    expect(app!.version).toBe('0.4.0');
+    expect(app!.lastUpdatedAt).toEqual(new Date('2026-03-10T12:00:00.000Z'));
+    expect(app!.statusVariant).toBe('dev');
+    expect(app!.visualKey).toBe('bars');
+  });
+
+  it('round-trips selector metadata on update', async () => {
+    await db.apps.create({
+      id: 'demo',
+      name: 'Demo',
+      url: 'http://localhost:3002',
+      iconUrl: '',
+      description: 'Demo app',
+      active: true,
+      version: '0.3.0',
+      lastUpdatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      statusVariant: 'live',
+      visualKey: 'bars',
+    });
+
+    await service.syncFromConfig([
+      {
+        id: 'demo',
+        name: 'Demo',
+        url: 'http://localhost:3002',
+        iconUrl: '',
+        description: 'Demo app',
+        version: '0.4.0',
+        lastUpdatedAt: '2026-04-01T00:00:00.000Z',
+        statusVariant: 'dev',
+        visualKey: 'ascii',
+      },
+    ]);
+
+    const app = await db.apps.get('demo');
+    expect(app!.version).toBe('0.4.0');
+    expect(app!.lastUpdatedAt).toEqual(new Date('2026-04-01T00:00:00.000Z'));
+    expect(app!.statusVariant).toBe('dev');
+    expect(app!.visualKey).toBe('ascii');
   });
 });
 
