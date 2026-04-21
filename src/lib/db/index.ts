@@ -24,12 +24,24 @@ import {
   PostgresAccessLogsRepo,
   type AccessLogsRepo,
 } from './access-logs';
+import {
+  InMemoryThreadsRepo,
+  PostgresThreadsRepo,
+  type ThreadsRepo,
+} from './threads';
+import {
+  InMemoryMessagesRepo,
+  PostgresMessagesRepo,
+  type MessagesRepo,
+} from './messages';
 
 export type { AppsRepo } from './apps';
 export type { UsersRepo } from './users';
 export type { CodesRepo } from './codes';
 export type { SessionsRepo } from './sessions';
 export type { AccessLogsRepo, AccessLogFilters } from './access-logs';
+export type { ThreadsRepo } from './threads';
+export type { MessagesRepo } from './messages';
 
 /**
  * Facade for the five per-aggregate repositories. Every data-access call in
@@ -42,6 +54,8 @@ export interface Database {
   codes: CodesRepo;
   sessions: SessionsRepo;
   accessLogs: AccessLogsRepo;
+  threads: ThreadsRepo;
+  messages: MessagesRepo;
 }
 
 /**
@@ -55,6 +69,8 @@ export class InMemoryDatabase implements Database {
   readonly codes: InMemoryCodesRepo;
   readonly sessions: InMemorySessionsRepo;
   readonly accessLogs: InMemoryAccessLogsRepo;
+  readonly threads: InMemoryThreadsRepo;
+  readonly messages: InMemoryMessagesRepo;
 
   constructor() {
     this.apps = new InMemoryAppsRepo();
@@ -62,6 +78,8 @@ export class InMemoryDatabase implements Database {
     this.codes = new InMemoryCodesRepo();
     this.sessions = new InMemorySessionsRepo();
     this.accessLogs = new InMemoryAccessLogsRepo();
+    this.threads = new InMemoryThreadsRepo();
+    this.messages = new InMemoryMessagesRepo();
   }
 }
 
@@ -76,6 +94,8 @@ export class PostgresDatabase implements Database {
   readonly codes: PostgresCodesRepo;
   readonly sessions: PostgresSessionsRepo;
   readonly accessLogs: PostgresAccessLogsRepo;
+  readonly threads: PostgresThreadsRepo;
+  readonly messages: PostgresMessagesRepo;
 
   /**
    * @param pool - Shared connection pool. Owned by the caller — close it on shutdown.
@@ -86,6 +106,8 @@ export class PostgresDatabase implements Database {
     this.codes = new PostgresCodesRepo(pool);
     this.sessions = new PostgresSessionsRepo(pool);
     this.accessLogs = new PostgresAccessLogsRepo(pool);
+    this.threads = new PostgresThreadsRepo(pool);
+    this.messages = new PostgresMessagesRepo(pool);
   }
 
   /** Closes the underlying pool. Call on graceful shutdown. */

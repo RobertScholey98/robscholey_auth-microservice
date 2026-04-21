@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, inject } from 'v
 import { Pool } from 'pg';
 import { PostgresDatabase } from '../db';
 import { resetDatabase } from './resetDatabase';
-import type { App, User, AccessCode, Session, AccessLog } from '@/types';
+import type { App, User, AccessCode, Session, AccessLog, Thread, Message } from '@/types';
 
 let db: PostgresDatabase;
 
@@ -275,5 +275,136 @@ describe('PostgresDatabase — Access Logs', () => {
     await db.accessLogs.append(log);
     expect(await db.accessLogs.query({ appId: 'portfolio' })).toHaveLength(1);
     expect(await db.accessLogs.query({ appId: 'other' })).toHaveLength(0);
+  });
+});
+
+describe('PostgresDatabase — Threads', () => {
+  const thread: Thread = {
+    id: 'thr_1',
+    contactEmail: 'alex@example.com',
+    contactName: 'Alex',
+    unreadCount: 1,
+    lastMessageAt: new Date('2026-04-20T10:00:00Z'),
+    lastMessagePreview: 'hi rob',
+    lastMessageDirection: 'in',
+    createdAt: new Date('2026-04-20T10:00:00Z'),
+  };
+
+  it('creates and retrieves a thread by id', async () => {
+    await db.threads.create(thread);
+    expect(await db.threads.get('thr_1')).toEqual(thread);
+  });
+
+  it('retrieves a thread by contact email', async () => {
+    await db.threads.create(thread);
+    expect(await db.threads.getByEmail('alex@example.com')).toEqual(thread);
+    expect(await db.threads.getByEmail('nobody@example.com')).toBeNull();
+  });
+
+  it('lists threads most-recent-first', async () => {
+    await db.threads.create(thread);
+    await db.threads.create({
+      ...thread,
+      id: 'thr_2',
+      contactEmail: 'bea@example.com',
+      lastMessageAt: new Date('2026-04-21T10:00:00Z'),
+    });
+    const list = await db.threads.list();
+    expect(list.map((t) => t.id)).toEqual(['thr_2', 'thr_1']);
+  });
+
+  it('updates denormalised fields and unread count', async () => {
+    await db.threads.create(thread);
+    const updated = await db.threads.update('thr_1', {
+      unreadCount: 0,
+      lastMessagePreview: 'replied',
+      lastMessageDirection: 'out',
+    });
+    expect(updated?.unreadCount).toBe(0);
+    expect(updated?.lastMessagePreview).toBe('replied');
+    expect(updated?.lastMessageDirection).toBe('out');
+  });
+
+  it('returns null when updating nonexistent thread', async () => {
+    expect(await db.threads.update('nope', { unreadCount: 0 })).toBeNull();
+  });
+
+  it('rejects duplicate contact emails', async () => {
+    await db.threads.create(thread);
+    await expect(
+      db.threads.create({ ...thread, id: 'thr_2' }),
+    ).rejects.toThrow();
+  });
+
+  it('deletes a thread and cascades to its messages', async () => {
+    await db.threads.create(thread);
+    await db.messages.create({
+      id: 'msg_1',
+      threadId: 'thr_1',
+      direction: 'in',
+      body: 'hi',
+      sessionToken: null,
+      codeId: null,
+      createdAt: new Date('2026-04-20T10:00:00Z'),
+    });
+    expect(await db.threads.delete('thr_1')).toBe(true);
+    expect(await db.messages.listByThread('thr_1')).toHaveLength(0);
+  });
+});
+
+describe('PostgresDatabase — Messages', () => {
+  const thread: Thread = {
+    id: 'thr_1',
+    contactEmail: 'alex@example.com',
+    contactName: 'Alex',
+    unreadCount: 0,
+    lastMessageAt: new Date('2026-04-20T10:00:00Z'),
+    lastMessagePreview: '',
+    lastMessageDirection: 'in',
+    createdAt: new Date('2026-04-20T10:00:00Z'),
+  };
+
+  beforeEach(async () => {
+    await db.threads.create(thread);
+  });
+
+  const inboundMessage: Message = {
+    id: 'msg_1',
+    threadId: 'thr_1',
+    direction: 'in',
+    body: 'hi Rob',
+    sessionToken: null,
+    codeId: null,
+    createdAt: new Date('2026-04-20T10:00:00Z'),
+  };
+
+  it('creates and lists a message', async () => {
+    await db.messages.create(inboundMessage);
+    const list = await db.messages.listByThread('thr_1');
+    expect(list).toEqual([inboundMessage]);
+  });
+
+  it('lists messages in chronological order', async () => {
+    await db.messages.create({
+      ...inboundMessage,
+      id: 'msg_2',
+      body: 'second',
+      createdAt: new Date('2026-04-20T10:05:00Z'),
+    });
+    await db.messages.create(inboundMessage);
+    const list = await db.messages.listByThread('thr_1');
+    expect(list.map((m) => m.id)).toEqual(['msg_1', 'msg_2']);
+  });
+
+  it('isolates messages by thread', async () => {
+    await db.threads.create({
+      ...thread,
+      id: 'thr_2',
+      contactEmail: 'bea@example.com',
+    });
+    await db.messages.create(inboundMessage);
+    await db.messages.create({ ...inboundMessage, id: 'msg_2', threadId: 'thr_2' });
+    expect(await db.messages.listByThread('thr_1')).toHaveLength(1);
+    expect(await db.messages.listByThread('thr_2')).toHaveLength(1);
   });
 });

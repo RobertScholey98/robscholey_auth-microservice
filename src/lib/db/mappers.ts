@@ -1,4 +1,13 @@
-import type { App, User, AccessCode, Session, AccessLog } from '@/types';
+import type {
+  App,
+  User,
+  AccessCode,
+  Session,
+  AccessLog,
+  Thread,
+  Message,
+  MessageDirection,
+} from '@/types';
 
 /** Opaque postgres row shape. Mappers narrow each column by name + type. */
 export type Row = Record<string, unknown>;
@@ -94,5 +103,40 @@ export function mapLog(row: Row): AccessLog {
     appId: row.app_id as string,
     accessedAt: row.accessed_at as Date,
     userAgent: row.user_agent as string,
+  };
+}
+
+/**
+ * Maps a `SELECT * FROM threads` row to the domain {@link Thread} type.
+ * @param row - Raw Postgres row.
+ * @returns The domain thread record.
+ */
+export function mapThread(row: Row): Thread {
+  return {
+    id: row.id as string,
+    contactEmail: row.contact_email as string,
+    contactName: row.contact_name as string,
+    unreadCount: row.unread_count as number,
+    lastMessageAt: row.last_message_at as Date,
+    lastMessagePreview: row.last_message_preview as string,
+    lastMessageDirection: row.last_message_direction as MessageDirection,
+    createdAt: row.created_at as Date,
+  };
+}
+
+/**
+ * Maps a `SELECT * FROM messages` row to the domain {@link Message} type.
+ * @param row - Raw Postgres row.
+ * @returns The domain message record.
+ */
+export function mapMessage(row: Row): Message {
+  return {
+    id: row.id as string,
+    threadId: row.thread_id as string,
+    direction: row.direction as MessageDirection,
+    body: row.body as string,
+    sessionToken: (row.session_token as string | null) ?? null,
+    codeId: (row.code_id as string | null) ?? null,
+    createdAt: row.created_at as Date,
   };
 }

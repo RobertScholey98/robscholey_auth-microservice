@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemoryDatabase } from '../db';
-import type { App, User, AccessCode, Session, AccessLog } from '@/types';
+import type { App, User, AccessCode, Session, AccessLog, Thread, Message } from '@/types';
 
 let db: InMemoryDatabase;
 
@@ -219,5 +219,79 @@ describe('InMemoryDatabase — Access Logs', () => {
     await db.accessLogs.append(log);
     expect(await db.accessLogs.query({ appId: 'portfolio' })).toHaveLength(1);
     expect(await db.accessLogs.query({ appId: 'other' })).toHaveLength(0);
+  });
+});
+
+describe('InMemoryDatabase — Threads', () => {
+  const thread: Thread = {
+    id: 'thr_1',
+    contactEmail: 'alex@example.com',
+    contactName: 'Alex',
+    unreadCount: 1,
+    lastMessageAt: new Date('2026-04-20T10:00:00Z'),
+    lastMessagePreview: 'hi',
+    lastMessageDirection: 'in',
+    createdAt: new Date('2026-04-20T10:00:00Z'),
+  };
+
+  it('creates and retrieves a thread by id', async () => {
+    await db.threads.create(thread);
+    expect(await db.threads.get('thr_1')).toEqual(thread);
+  });
+
+  it('retrieves a thread by contact email', async () => {
+    await db.threads.create(thread);
+    expect(await db.threads.getByEmail('alex@example.com')).toEqual(thread);
+    expect(await db.threads.getByEmail('nobody@example.com')).toBeNull();
+  });
+
+  it('lists threads most-recent-first', async () => {
+    await db.threads.create(thread);
+    await db.threads.create({
+      ...thread,
+      id: 'thr_2',
+      contactEmail: 'bea@example.com',
+      lastMessageAt: new Date('2026-04-21T10:00:00Z'),
+    });
+    const list = await db.threads.list();
+    expect(list.map((t) => t.id)).toEqual(['thr_2', 'thr_1']);
+  });
+
+  it('updates denormalised fields and unread count', async () => {
+    await db.threads.create(thread);
+    const updated = await db.threads.update('thr_1', {
+      unreadCount: 0,
+      lastMessageDirection: 'out',
+    });
+    expect(updated?.unreadCount).toBe(0);
+    expect(updated?.lastMessageDirection).toBe('out');
+  });
+});
+
+describe('InMemoryDatabase — Messages', () => {
+  const message: Message = {
+    id: 'msg_1',
+    threadId: 'thr_1',
+    direction: 'in',
+    body: 'hi Rob',
+    sessionToken: null,
+    codeId: null,
+    createdAt: new Date('2026-04-20T10:00:00Z'),
+  };
+
+  it('creates and lists messages', async () => {
+    await db.messages.create(message);
+    expect(await db.messages.listByThread('thr_1')).toEqual([message]);
+  });
+
+  it('sorts messages chronologically', async () => {
+    await db.messages.create({
+      ...message,
+      id: 'msg_2',
+      createdAt: new Date('2026-04-20T10:05:00Z'),
+    });
+    await db.messages.create(message);
+    const list = await db.messages.listByThread('thr_1');
+    expect(list.map((m) => m.id)).toEqual(['msg_1', 'msg_2']);
   });
 });

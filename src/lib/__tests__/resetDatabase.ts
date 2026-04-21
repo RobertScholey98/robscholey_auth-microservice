@@ -19,11 +19,13 @@ export async function resetDatabase(db: Database): Promise<void> {
     db.codes._reset();
     db.sessions._reset();
     db.accessLogs._reset();
+    db.threads._reset();
+    db.messages._reset();
     return;
   }
   if (db instanceof PostgresDatabase) {
     await db.pool.query(
-      'TRUNCATE access_logs, sessions, access_codes, users, apps RESTART IDENTITY CASCADE',
+      'TRUNCATE messages, threads, access_logs, sessions, access_codes, users, apps RESTART IDENTITY CASCADE',
     );
     return;
   }
