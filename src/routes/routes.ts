@@ -3,7 +3,7 @@ import type { Env } from '@/index';
 import { rateLimit, adminAuth, testOnly } from '@/middleware';
 
 import { setup, login, validateCode, getSession, logout } from './handlers/auth';
-import { pokeSession } from './handlers/test';
+import { pokeSession, resetRateLimit } from './handlers/test';
 import {
   listApps,
   patchAppActive,
@@ -84,4 +84,9 @@ export function registerRoutes(app: Hono<Env>) {
   //  E2E harness to drive presence-transition scenarios without wall-clock
   //  delays — see /e2e/ and src/middleware/testOnly.ts.
   app.post('/admin/test/poke-session', testOnly, pokeSession);
+
+  //  Rate-limit reset sits OUTSIDE /admin/* so it&rsquo;s callable even when
+  //  the login bucket is full (admin auth requires a fresh JWT, which needs
+  //  a fresh login, which needs rate-limit room — chicken-and-egg).
+  app.post('/test/reset-rate-limit', testOnly, resetRateLimit);
 }
