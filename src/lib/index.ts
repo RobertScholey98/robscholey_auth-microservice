@@ -24,3 +24,5 @@ export {
 } from './errors';
 export { createLogger } from './logger';
 export type { Logger, CreateLoggerOptions } from './logger';
+export { createEventsBus } from './events';
+export type { EventsBus, EventsListener } from './events';

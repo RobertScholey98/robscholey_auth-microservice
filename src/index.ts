@@ -1,6 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { handleAppError, type Database, type Logger } from '@/lib';
+import {
+  createEventsBus,
+  handleAppError,
+  type Database,
+  type EventsBus,
+  type Logger,
+} from '@/lib';
 import { requestId, requestLogger } from '@/middleware';
 import { buildServices, type Services } from '@/services';
 import { registerRoutes } from '@/routes/routes';
@@ -12,11 +18,14 @@ import type { User } from '@/types';
  * read `c.get('services')` with the correct narrowing. `user` is set by
  * {@link adminAuth} for admin routes only. `requestId` and `logger` are set
  * by the request-id and request-logger middleware and are present on every
- * request.
+ * request. `events` is the in-process pub-sub bus the SSE stream handler
+ * subscribes to and domain services will publish into as later phases wire
+ * up presence / messaging / audit emitters.
  */
 export type Env = {
   Variables: {
     services: Services;
+    events: EventsBus;
     user: User;
     requestId: string;
     logger: Logger;
@@ -39,6 +48,7 @@ export type Env = {
  * @returns A fully-wired Hono app, ready to be passed to `@hono/node-server`.
  */
 export function createApp(database: Database, logger: Logger): Hono<Env> {
+  const events = createEventsBus();
   const services = buildServices(database);
 
   const app = new Hono<Env>().basePath('/api');
@@ -60,6 +70,7 @@ export function createApp(database: Database, logger: Logger): Hono<Env> {
 
   app.use('*', async (c, next) => {
     c.set('services', services);
+    c.set('events', events);
     await next();
   });
 

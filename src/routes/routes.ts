@@ -18,6 +18,7 @@ import {
   listSessions,
   deleteSession,
   getAnalytics,
+  stream,
 } from './handlers/admin';
 import { logAccess } from './handlers/logging';
 import { getAppMeta, getAppIcon } from './handlers/public';
@@ -70,4 +71,7 @@ export function registerRoutes(app: Hono<Env>) {
 
   //  Analytics
   app.get('/admin/analytics', getAnalytics);
+
+  //  Stream (SSE — JWT accepted on the query string via adminAuth)
+  app.get('/admin/stream', stream);
 }
