@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { createApp } from './index';
 import { PostgresDatabase, createLogger } from './lib';
 import { loadAppsConfig } from './lib/appsConfig';
+import { assertTestEndpointsAllowed } from './middleware';
 import { seed } from './seed';
 import { buildServices } from './services';
 
@@ -12,6 +13,10 @@ const AUTH_SERVICE_PORT = 3001;
 
 async function main() {
   const logger = createLogger({ name: 'auth' });
+
+  // Refuse to boot if the E2E test endpoints are enabled in production.
+  // Non-production boots continue normally whether the flag is set or not.
+  assertTestEndpointsAllowed();
 
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {

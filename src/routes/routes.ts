@@ -1,8 +1,9 @@
 import type { Hono } from 'hono';
 import type { Env } from '@/index';
-import { rateLimit, adminAuth } from '@/middleware';
+import { rateLimit, adminAuth, testOnly } from '@/middleware';
 
 import { setup, login, validateCode, getSession, logout } from './handlers/auth';
+import { pokeSession } from './handlers/test';
 import {
   listApps,
   patchAppActive,
@@ -78,4 +79,9 @@ export function registerRoutes(app: Hono<Env>) {
 
   //  Stream (SSE — JWT accepted on the query string via adminAuth)
   app.get('/admin/stream', stream);
+
+  //  Test-only (404 unless ENABLE_TEST_ENDPOINTS=1). Used by the Playwright
+  //  E2E harness to drive presence-transition scenarios without wall-clock
+  //  delays — see /e2e/ and src/middleware/testOnly.ts.
+  app.post('/admin/test/poke-session', testOnly, pokeSession);
 }

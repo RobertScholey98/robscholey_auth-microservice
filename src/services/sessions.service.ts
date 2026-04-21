@@ -44,6 +44,23 @@ export function createSessionsService(db: Database) {
     },
 
     /**
+     * Test-only: rewrites `last_active_at` on an existing session so E2E
+     * specs can drive presence-transition scenarios without wall-clock
+     * delays. Gated end-to-end — the HTTP route fronting this is behind
+     * {@link testOnly}, which refuses unless `ENABLE_TEST_ENDPOINTS=1`.
+     *
+     * The `_test` prefix marks this as off-limits for production code
+     * paths; see [`CLAUDE.md`](../../CLAUDE.md) "Test-only exports".
+     *
+     * @param token - Session to update.
+     * @param lastActiveAt - New last-active timestamp.
+     * @returns The updated session, or `null` if the token was unknown.
+     */
+    async _testSetLastActiveAt(token: string, lastActiveAt: Date): Promise<Session | null> {
+      return db.sessions.update(token, { lastActiveAt });
+    },
+
+    /**
      * Looks up a session and enforces active-session rules. Throws
      * {@link UnauthorizedError} when the session is missing or expired, and
      * {@link ForbiddenError} when an `appId` is supplied but not present in
