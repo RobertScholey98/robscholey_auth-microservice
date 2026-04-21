@@ -54,7 +54,7 @@ async function main() {
 
   await seed(database, logger);
 
-  const app = createApp(database, logger);
+  const app = createApp(database, logger, { backgroundTickers: true });
   serve({ fetch: app.fetch, port: AUTH_SERVICE_PORT }, (info) => {
     logger.info({ event: 'boot.server.listening', port: info.port });
   });

@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import {
   createEventsBus,
   handleAppError,
+  startPresenceTicker,
   type Database,
   type EventsBus,
   type Logger,
@@ -32,6 +33,17 @@ export type Env = {
   };
 };
 
+/** Options accepted by {@link createApp}. */
+export interface CreateAppOptions {
+  /**
+   * When `true`, starts background tickers (presence recomputation, etc.).
+   * Off by default so tests that build many apps in `beforeAll` don&rsquo;t
+   * leak `setInterval` handles across suites. The production entrypoint
+   * (`src/dev.ts`) passes `true`.
+   */
+  backgroundTickers?: boolean;
+}
+
 /**
  * Builds the auth-service Hono app against a given {@link Database} and root
  * {@link Logger}. The service bundle is constructed once per `createApp` call
@@ -45,9 +57,14 @@ export type Env = {
  *
  * @param database - The database backing every request through this app.
  * @param logger - Root logger; per-request child loggers derive from this.
+ * @param options - See {@link CreateAppOptions}.
  * @returns A fully-wired Hono app, ready to be passed to `@hono/node-server`.
  */
-export function createApp(database: Database, logger: Logger): Hono<Env> {
+export function createApp(
+  database: Database,
+  logger: Logger,
+  options: CreateAppOptions = {},
+): Hono<Env> {
   const events = createEventsBus();
   const services = buildServices(database);
 
@@ -77,6 +94,15 @@ export function createApp(database: Database, logger: Logger): Hono<Env> {
   app.onError(handleAppError);
 
   registerRoutes(app);
+
+  if (options.backgroundTickers) {
+    startPresenceTicker({
+      getSnapshot: () => services.presence.getSnapshot(),
+      events,
+      onError: (err) =>
+        logger.warn({ event: 'presence.ticker.error', err }, 'presence ticker threw'),
+    });
+  }
 
   return app;
 }

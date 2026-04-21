@@ -26,3 +26,5 @@ export { createLogger } from './logger';
 export type { Logger, CreateLoggerOptions } from './logger';
 export { createEventsBus } from './events';
 export type { EventsBus, EventsListener } from './events';
+export { startPresenceTicker } from './presence-ticker';
+export type { PresenceTickerOptions } from './presence-ticker';

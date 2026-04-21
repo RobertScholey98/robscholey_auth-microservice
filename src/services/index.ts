@@ -4,6 +4,7 @@ import { createAppsService } from './apps.service';
 import { createAuthService } from './auth.service';
 import { createCodesService } from './codes.service';
 import { createLoggingService } from './logging.service';
+import { createPresenceService } from './presence.service';
 import { createPublicService } from './public.service';
 import { createSessionsService } from './sessions.service';
 import { createUsersService } from './users.service';
@@ -26,6 +27,7 @@ export {
   type LoggingService,
   type RecordAccessInput,
 } from './logging.service';
+export { createPresenceService, type PresenceService } from './presence.service';
 export { createPublicService, type PublicService } from './public.service';
 export {
   createSessionsService,
@@ -35,7 +37,7 @@ export {
 export { createUsersService, type UsersService } from './users.service';
 
 /**
- * Builds the eight-service bundle against a given {@link Database}. Called
+ * Builds the services bundle against a given {@link Database}. Called
  * once per `createApp` invocation; the returned bundle is attached to every
  * request via Hono context so handlers never reach for a module-level
  * singleton.
@@ -56,6 +58,7 @@ export function buildServices(db: Database) {
     sessions,
     analytics: createAnalyticsService(db),
     logging: createLoggingService(db, sessions),
+    presence: createPresenceService(db),
     public: createPublicService(db),
   };
 }
