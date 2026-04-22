@@ -33,6 +33,8 @@ beforeEach(async () => {
     iconUrl: '',
     description: '',
     active: true,
+    defaultTheme: 'dark',
+    defaultAccent: 'teal',
   });
 
   const res = await app.request('/api/auth/setup', {

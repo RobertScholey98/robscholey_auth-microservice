@@ -1,7 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import type { Accent, ShellTheme } from '@robscholey/contracts';
 
 /** Status variants accepted by the selector-metadata field. */
 const STATUS_VARIANTS = ['live', 'dev', 'soon', 'paused'] as const;
+/** Theme values accepted on `defaultTheme`. */
+const THEMES = ['light', 'dark'] as const;
+/** Accent values accepted on `defaultAccent`. */
+const ACCENTS = ['teal', 'warm', 'mono', 'rose', 'indigo', 'betway', 'fsgb'] as const;
 
 /**
  * Matches `${VAR_NAME}` placeholders inside string values. Supports plain
@@ -41,6 +46,17 @@ export interface AppConfig {
   description: string;
   /** When true, the app is hidden from non-owner users in shell-facing responses. */
   ownerOnly?: boolean;
+  /**
+   * Default theme an app's SSR layout renders. Optional in config; defaults
+   * to `'dark'` on insert. Once written to the DB, admin edits in the
+   * dashboard are preserved across re-syncs (see `apps.service.syncFromConfig`).
+   */
+  defaultTheme?: ShellTheme;
+  /**
+   * Default accent an app's SSR layout renders. Optional in config; defaults
+   * to `'teal'` on insert. Same insert-only treatment as {@link defaultTheme}.
+   */
+  defaultAccent?: Accent;
   /** Display-only version string surfaced by the shell selector (e.g. `0.3.0`). */
   version?: string;
   /** ISO 8601 timestamp of the app's last meaningful update. */
@@ -92,6 +108,22 @@ function validate(data: unknown): AppConfig[] {
         `appsConfig.json: apps[${i}].statusVariant must be one of ${STATUS_VARIANTS.join(', ')} when set`,
       );
     }
+    if (
+      e.defaultTheme !== undefined &&
+      !THEMES.includes(e.defaultTheme as (typeof THEMES)[number])
+    ) {
+      throw new Error(
+        `appsConfig.json: apps[${i}].defaultTheme must be one of ${THEMES.join(', ')} when set`,
+      );
+    }
+    if (
+      e.defaultAccent !== undefined &&
+      !ACCENTS.includes(e.defaultAccent as (typeof ACCENTS)[number])
+    ) {
+      throw new Error(
+        `appsConfig.json: apps[${i}].defaultAccent must be one of ${ACCENTS.join(', ')} when set`,
+      );
+    }
     return {
       id: e.id as string,
       name: e.name as string,
@@ -99,6 +131,8 @@ function validate(data: unknown): AppConfig[] {
       iconUrl: e.iconUrl as string,
       description: e.description as string,
       ...(e.ownerOnly === true ? { ownerOnly: true } : {}),
+      ...(e.defaultTheme !== undefined ? { defaultTheme: e.defaultTheme as ShellTheme } : {}),
+      ...(e.defaultAccent !== undefined ? { defaultAccent: e.defaultAccent as Accent } : {}),
       ...(e.version !== undefined ? { version: e.version as string } : {}),
       ...(e.lastUpdatedAt !== undefined ? { lastUpdatedAt: e.lastUpdatedAt as string } : {}),
       ...(e.statusVariant !== undefined

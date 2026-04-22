@@ -1,3 +1,5 @@
+import type { Accent, ShellTheme } from '@robscholey/contracts';
+
 /** A registered sub-application in the platform. The `id` doubles as the URL slug. */
 export interface App {
   id: string;
@@ -6,6 +8,10 @@ export interface App {
   iconUrl: string;
   description: string;
   active: boolean;
+  /** Default theme the app's SSR layout renders into `<html data-theme>`. */
+  defaultTheme: ShellTheme;
+  /** Default accent the app's SSR layout renders into `<html data-accent>`. */
+  defaultAccent: Accent;
   /** Display-only version string surfaced by the shell selector (e.g. `0.3.0`). */
   version?: string;
   /** Last meaningful update to the app, surfaced on the selector card. */

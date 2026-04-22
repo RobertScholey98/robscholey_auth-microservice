@@ -130,6 +130,8 @@ describe('GET /api/admin/apps', () => {
       iconUrl: '',
       description: 'Fixture app present in appsConfig.json',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
     await db.apps.create({
       id: 'legacy',
@@ -138,6 +140,8 @@ describe('GET /api/admin/apps', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     const res = await adminReq('GET', '/api/admin/apps');
@@ -158,12 +162,16 @@ describe('PATCH /api/admin/apps/:id/active', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
   });
 
   it('toggles active to true', async () => {
     const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -174,6 +182,8 @@ describe('PATCH /api/admin/apps/:id/active', () => {
     await db.apps.update('in-config', { active: true });
     const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -190,6 +200,8 @@ describe('PATCH /api/admin/apps/:id/active', () => {
   it('returns 404 for missing app', async () => {
     const res = await adminReq('PATCH', '/api/admin/apps/nope/active', {
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
     expect(res.status).toBe(404);
   });
@@ -204,6 +216,8 @@ describe('DELETE /api/admin/apps/:id', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
     const res = await adminReq('DELETE', '/api/admin/apps/legacy');
     expect(res.status).toBe(200);
@@ -220,6 +234,8 @@ describe('DELETE /api/admin/apps/:id', () => {
       iconUrl: '',
       description: '',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
     const res = await adminReq('DELETE', '/api/admin/apps/in-config');
     expect(res.status).toBe(400);
@@ -300,6 +316,8 @@ describe('DELETE /api/admin/users/:id', () => {
       iconUrl: '',
       description: '',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     // Create a code for this user
@@ -353,6 +371,8 @@ describe('POST /api/admin/codes', () => {
       iconUrl: '',
       description: '',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
   });
 
@@ -692,6 +712,8 @@ describe('Validation envelope (admin)', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
     const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
       active: 'yes',

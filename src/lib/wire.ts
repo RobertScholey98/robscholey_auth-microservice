@@ -34,6 +34,8 @@ export function appToWire(a: App): WireApp {
     iconUrl: a.iconUrl,
     description: a.description,
     active: a.active,
+    defaultTheme: a.defaultTheme,
+    defaultAccent: a.defaultAccent,
     ...(a.version !== undefined ? { version: a.version } : {}),
     ...(a.lastUpdatedAt !== undefined ? { lastUpdatedAt: a.lastUpdatedAt.toISOString() } : {}),
     ...(a.statusVariant !== undefined ? { statusVariant: a.statusVariant } : {}),

@@ -16,7 +16,9 @@ export type Row = Record<string, unknown>;
  * Maps a `SELECT * FROM apps` row to the domain {@link App} type. Nullable
  * metadata columns (`version`, `last_updated_at`, `status_variant`,
  * `visual_key`) collapse to `undefined` on the domain side — optional on the
- * type, absent on the wire.
+ * type, absent on the wire. `default_theme` and `default_accent` are NOT
+ * NULL with column-level defaults so they always come back as concrete
+ * strings.
  * @param row - Raw Postgres row.
  * @returns The domain app record.
  */
@@ -32,6 +34,8 @@ export function mapApp(row: Row): App {
     iconUrl: row.icon_url as string,
     description: row.description as string,
     active: row.active as boolean,
+    defaultTheme: row.default_theme as App['defaultTheme'],
+    defaultAccent: row.default_accent as App['defaultAccent'],
     ...(version !== undefined ? { version } : {}),
     ...(lastUpdatedAt !== undefined ? { lastUpdatedAt } : {}),
     ...(statusVariant !== undefined ? { statusVariant } : {}),

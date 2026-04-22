@@ -115,10 +115,15 @@ export function createAppsService(db: Database) {
      *   - If already in DB → updates structural fields. Preserves `active`
      *     for normal apps, force-resets `active: true` for owner-only apps
      *     (they're owner tooling that shouldn't be toggleable — always
-     *     accessible to the owner).
+     *     accessible to the owner). **`defaultTheme` and `defaultAccent` are
+     *     deliberately not touched on update** — the DB is the source of
+     *     truth post-insert so admin edits in the dashboard survive
+     *     subsequent boots that re-read the file.
      *   - Otherwise → inserts with `active: false` for normal apps,
      *     `active: true` for owner-only apps (so new admin-style apps
-     *     appear on first boot without a manual unblock step).
+     *     appear on first boot without a manual unblock step). Defaults
+     *     for theme/accent are written from the config if present, falling
+     *     back to `'dark'` / `'teal'`.
      *
      * Apps present in the DB but missing from config are left untouched
      * (orphans). They're returned for logging and surfaced in the admin UI
@@ -155,6 +160,8 @@ export function createAppsService(db: Database) {
             iconUrl: entry.iconUrl,
             description: entry.description,
             active: ownerOnly,
+            defaultTheme: entry.defaultTheme ?? 'dark',
+            defaultAccent: entry.defaultAccent ?? 'teal',
             ...selectorMetadata,
           });
         }

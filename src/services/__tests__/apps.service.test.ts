@@ -47,6 +47,8 @@ describe('apps.service.syncFromConfig', () => {
       iconUrl: config[0].iconUrl,
       description: config[0].description,
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     await service.syncFromConfig([{ ...config[0], name: 'New Name' }]);
@@ -64,6 +66,8 @@ describe('apps.service.syncFromConfig', () => {
       iconUrl: '',
       description: '',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     const result = await service.syncFromConfig(config);
@@ -80,6 +84,8 @@ describe('apps.service.syncFromConfig', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     const result = await service.syncFromConfig([]);
@@ -112,6 +118,8 @@ describe('apps.service.syncFromConfig', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     await service.syncFromConfig([
@@ -151,6 +159,64 @@ describe('apps.service.syncFromConfig', () => {
     expect(app!.visualKey).toBe('bars');
   });
 
+  it('writes defaultTheme + defaultAccent from config on insert', async () => {
+    await service.syncFromConfig([
+      {
+        id: 'demo',
+        name: 'Demo',
+        url: 'http://localhost:3002',
+        iconUrl: '',
+        description: 'Demo app',
+        defaultTheme: 'light',
+        defaultAccent: 'fsgb',
+      },
+    ]);
+
+    const app = await db.apps.get('demo');
+    expect(app!.defaultTheme).toBe('light');
+    expect(app!.defaultAccent).toBe('fsgb');
+  });
+
+  it('falls back to dark + teal on insert when config omits defaults', async () => {
+    await service.syncFromConfig(config);
+
+    const app = await db.apps.get('demo');
+    expect(app!.defaultTheme).toBe('dark');
+    expect(app!.defaultAccent).toBe('teal');
+  });
+
+  it('preserves DB defaults on update — config edits do NOT overwrite admin choices', async () => {
+    // Simulate an admin edit landing in the DB after the initial sync.
+    await db.apps.create({
+      id: 'demo',
+      name: 'Demo',
+      url: 'http://localhost:3002',
+      iconUrl: '',
+      description: 'Demo app',
+      active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'rose',
+    });
+
+    // Subsequent boot re-reads the file — config still says fsgb, but the
+    // DB row should keep the admin-edited rose value.
+    await service.syncFromConfig([
+      {
+        id: 'demo',
+        name: 'Demo',
+        url: 'http://localhost:3002',
+        iconUrl: '',
+        description: 'Demo app',
+        defaultTheme: 'light',
+        defaultAccent: 'fsgb',
+      },
+    ]);
+
+    const app = await db.apps.get('demo');
+    expect(app!.defaultTheme).toBe('dark');
+    expect(app!.defaultAccent).toBe('rose');
+  });
+
   it('round-trips selector metadata on update', async () => {
     await db.apps.create({
       id: 'demo',
@@ -159,6 +225,8 @@ describe('apps.service.syncFromConfig', () => {
       iconUrl: '',
       description: 'Demo app',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
       version: '0.3.0',
       lastUpdatedAt: new Date('2026-01-01T00:00:00.000Z'),
       statusVariant: 'live',
@@ -206,6 +274,8 @@ describe('apps.service.removeOrphan', () => {
       iconUrl: '',
       description: '',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     await expect(service.removeOrphan('in-config')).rejects.toMatchObject({
@@ -223,6 +293,8 @@ describe('apps.service.removeOrphan', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     await expect(service.removeOrphan('legacy')).resolves.toBeUndefined();

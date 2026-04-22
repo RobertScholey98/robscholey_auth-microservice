@@ -36,6 +36,8 @@ describe('GET /api/apps/:slug/meta', () => {
       iconUrl: '/icons/portfolio.png',
       description: 'My portfolio',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     const res = await app.request('/api/apps/portfolio/meta');
@@ -59,6 +61,8 @@ describe('GET /api/apps/:slug/meta', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     const res = await app.request('/api/apps/hidden/meta');
@@ -73,6 +77,8 @@ describe('GET /api/apps/:slug/meta', () => {
       iconUrl: '',
       description: '',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     // No Authorization header
@@ -90,6 +96,8 @@ describe('GET /api/app-icon/:slug', () => {
       iconUrl: '',
       description: '',
       active: true,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     const res = await app.request('/api/app-icon/portfolio');
@@ -115,6 +123,8 @@ describe('GET /api/app-icon/:slug', () => {
       iconUrl: '',
       description: '',
       active: false,
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
 
     const res = await app.request('/api/app-icon/hidden');

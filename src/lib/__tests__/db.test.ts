@@ -16,6 +16,8 @@ describe('InMemoryDatabase — Apps', () => {
     iconUrl: '/icons/portfolio.png',
     description: 'My portfolio',
     active: true,
+    defaultTheme: 'dark',
+    defaultAccent: 'teal',
   };
 
   it('creates and retrieves an app', async () => {
