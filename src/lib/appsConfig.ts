@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { Accent, ShellTheme } from '@robscholey/contracts';
+import type { Accent, AppTag, ShellTheme, TagVariant } from '@robscholey/contracts';
 
 /** Status variants accepted by the selector-metadata field. */
 const STATUS_VARIANTS = ['live', 'dev', 'soon', 'paused'] as const;
@@ -7,40 +7,27 @@ const STATUS_VARIANTS = ['live', 'dev', 'soon', 'paused'] as const;
 const THEMES = ['light', 'dark'] as const;
 /** Accent values accepted on `defaultAccent`. */
 const ACCENTS = ['teal', 'warm', 'mono', 'rose', 'indigo', 'betway', 'fsgb'] as const;
+/** Tag variants accepted on each {@link AppTag}. */
+const TAG_VARIANTS = ['default', 'accent', 'warm'] as const satisfies readonly TagVariant[];
 
 /**
- * Matches `${VAR_NAME}` placeholders inside string values. Supports plain
- * `A-Z 0-9 _` identifiers — broad enough for the environment variable names
- * we use, tight enough to stay out of punctuation that belongs in URLs.
+ * Matches the id shape the rest of the stack assumes — a lowercase slug safe
+ * for URLs, DB keys, and env-var names. Enforced at load time so a typo in
+ * `appsConfig.json` fails loudly instead of producing mysterious routing
+ * errors further down.
  */
-const ENV_REF_PATTERN = /\$\{([A-Z0-9_]+)\}/g;
-
-/**
- * Substitutes `${VAR}` placeholders with the value of the matching env var.
- * Unset vars throw so misconfiguration fails loudly at boot rather than
- * silently resolving to `undefined`. No-ops on strings without placeholders.
- *
- * @param value - The raw string, typically an entry URL from `appsConfig.json`.
- * @param field - Diagnostic label used in the thrown message.
- * @returns The resolved string with all placeholders substituted.
- * @throws If any referenced env var is unset.
- */
-function substituteEnv(value: string, field: string): string {
-  return value.replace(ENV_REF_PATTERN, (_match, name: string) => {
-    const resolved = process.env[name];
-    if (resolved === undefined || resolved === '') {
-      throw new Error(
-        `appsConfig.json: ${field} references \${${name}} but that env var is unset`,
-      );
-    }
-    return resolved;
-  });
-}
+const ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 /** A single entry in `appsConfig.json` — structural fields only, no runtime state. */
 export interface AppConfig {
   id: string;
   name: string;
+  /**
+   * Browser-reachable URL for the sub-app. Derived by {@link loadAppsConfig}
+   * from `subdomain` + `publicDomain` in production, or from `port` in dev,
+   * unless the raw config provides an explicit `url` override (for external
+   * apps that live outside this deploy).
+   */
   url: string;
   iconUrl: string;
   description: string;
@@ -65,13 +52,82 @@ export interface AppConfig {
   statusVariant?: (typeof STATUS_VARIANTS)[number];
   /** Opaque key the shell maps to a local visual component. */
   visualKey?: string;
+  /** Tags rendered on the shell selector card. */
+  tags?: AppTag[];
+  /** Short mono-style marker rendered top-left on the selector card. */
+  visualMark?: string;
+}
+
+/**
+ * Raw entry shape as written in `appsConfig.json` — a superset of
+ * {@link AppConfig} that carries the derivation inputs (`port`, `subdomain`)
+ * and dev-orchestration fields (`dir`, `envFile`) consumed by scripts. These
+ * are intentionally elided from {@link AppConfig} so downstream services
+ * can't come to depend on them.
+ */
+interface RawAppConfig {
+  id: string;
+  name: string;
+  url?: string;
+  port?: number;
+  subdomain?: string;
+  dir?: string;
+  envFile?: string;
+  iconUrl: string;
+  description: string;
+  ownerOnly?: boolean;
+  defaultTheme?: ShellTheme;
+  defaultAccent?: Accent;
+  version?: string;
+  lastUpdatedAt?: string;
+  statusVariant?: (typeof STATUS_VARIANTS)[number];
+  visualKey?: string;
+  tags?: AppTag[];
+  visualMark?: string;
+}
+
+/** Context the URL resolver needs to decide between dev and prod derivation. */
+interface ResolveContext {
+  publicDomain: string;
+  isProduction: boolean;
 }
 
 let cached: AppConfig[] | null = null;
 
-function validate(data: unknown): AppConfig[] {
+/**
+ * Produces a browser-reachable URL for an app entry.
+ *
+ * Precedence:
+ *   1. Explicit `url` in config — used verbatim. Covers external apps (e.g.
+ *      one hosted outside this deploy) that shouldn't be derived.
+ *   2. In production: `https://{subdomain ?? id}.{publicDomain}`. Caddy must
+ *      be configured to route that subdomain to the backing container.
+ *   3. In development: `http://localhost:{port}`. Matches the dev-ports
+ *      exposed by `docker-compose.yml` and `scripts/dev.sh`.
+ *
+ * @param raw - The raw config entry.
+ * @param ctx - Public domain + environment hint.
+ * @param i - Index into the `apps` array for error messages.
+ * @returns The resolved URL as a string.
+ * @throws If neither `url` nor `port` is set (nothing to derive).
+ */
+function resolveUrl(raw: RawAppConfig, ctx: ResolveContext, i: number): string {
+  if (raw.url !== undefined && raw.url !== '') return raw.url;
+  if (raw.port === undefined) {
+    throw new Error(
+      `appsConfig.json: apps[${i}] needs either "url" or "port" so a URL can be derived`,
+    );
+  }
+  if (ctx.isProduction) {
+    const subdomain = raw.subdomain ?? raw.id;
+    return `https://${subdomain}.${ctx.publicDomain}`;
+  }
+  return `http://localhost:${raw.port}`;
+}
+
+function validate(data: unknown, ctx: ResolveContext): AppConfig[] {
   if (typeof data !== 'object' || data === null || !('apps' in data)) {
-    throw new Error('appsConfig.json: expected { "apps": [...] }');
+    throw new Error('appsConfig.json: expected { "publicDomain": "...", "apps": [...] }');
   }
   const { apps } = data as { apps: unknown };
   if (!Array.isArray(apps)) {
@@ -82,10 +138,21 @@ function validate(data: unknown): AppConfig[] {
       throw new Error(`appsConfig.json: apps[${i}] must be an object`);
     }
     const e = entry as Record<string, unknown>;
-    for (const field of ['id', 'name', 'url', 'iconUrl', 'description'] as const) {
+    for (const field of ['id', 'name', 'iconUrl', 'description'] as const) {
       if (typeof e[field] !== 'string') {
         throw new Error(`appsConfig.json: apps[${i}].${field} must be a string`);
       }
+    }
+    if (!ID_PATTERN.test(e.id as string)) {
+      throw new Error(
+        `appsConfig.json: apps[${i}].id must match ${ID_PATTERN} — got "${String(e.id)}"`,
+      );
+    }
+    if (e.url !== undefined && typeof e.url !== 'string') {
+      throw new Error(`appsConfig.json: apps[${i}].url must be a string when set`);
+    }
+    if (e.subdomain !== undefined && typeof e.subdomain !== 'string') {
+      throw new Error(`appsConfig.json: apps[${i}].subdomain must be a string when set`);
     }
     if (e.ownerOnly !== undefined && typeof e.ownerOnly !== 'boolean') {
       throw new Error(`appsConfig.json: apps[${i}].ownerOnly must be a boolean when set`);
@@ -127,34 +194,84 @@ function validate(data: unknown): AppConfig[] {
         `appsConfig.json: apps[${i}].defaultAccent must be one of ${ACCENTS.join(', ')} when set`,
       );
     }
+    if (e.tags !== undefined) {
+      if (!Array.isArray(e.tags)) {
+        throw new Error(`appsConfig.json: apps[${i}].tags must be an array when set`);
+      }
+      e.tags.forEach((tag, j) => {
+        if (typeof tag !== 'object' || tag === null) {
+          throw new Error(`appsConfig.json: apps[${i}].tags[${j}] must be an object`);
+        }
+        const t = tag as Record<string, unknown>;
+        if (typeof t.label !== 'string') {
+          throw new Error(`appsConfig.json: apps[${i}].tags[${j}].label must be a string`);
+        }
+        if (
+          t.variant !== undefined &&
+          !TAG_VARIANTS.includes(t.variant as TagVariant)
+        ) {
+          throw new Error(
+            `appsConfig.json: apps[${i}].tags[${j}].variant must be one of ${TAG_VARIANTS.join(', ')} when set`,
+          );
+        }
+      });
+    }
+    if (e.visualMark !== undefined && typeof e.visualMark !== 'string') {
+      throw new Error(`appsConfig.json: apps[${i}].visualMark must be a string when set`);
+    }
+
+    // Fields are field-by-field typechecked above, so the narrowing is safe
+    // at runtime — the double-cast satisfies TS's stricter arm.
+    const raw = e as unknown as RawAppConfig;
     return {
-      id: e.id as string,
-      name: e.name as string,
-      url: substituteEnv(e.url as string, `apps[${i}].url`),
-      iconUrl: e.iconUrl as string,
-      description: e.description as string,
-      ...(e.ownerOnly === true ? { ownerOnly: true } : {}),
-      ...(e.defaultTheme !== undefined ? { defaultTheme: e.defaultTheme as ShellTheme } : {}),
-      ...(e.defaultAccent !== undefined ? { defaultAccent: e.defaultAccent as Accent } : {}),
-      ...(e.version !== undefined ? { version: e.version as string } : {}),
-      ...(e.lastUpdatedAt !== undefined ? { lastUpdatedAt: e.lastUpdatedAt as string } : {}),
-      ...(e.statusVariant !== undefined
-        ? { statusVariant: e.statusVariant as (typeof STATUS_VARIANTS)[number] }
-        : {}),
-      ...(e.visualKey !== undefined ? { visualKey: e.visualKey as string } : {}),
+      id: raw.id,
+      name: raw.name,
+      url: resolveUrl(raw, ctx, i),
+      iconUrl: raw.iconUrl,
+      description: raw.description,
+      ...(raw.ownerOnly === true ? { ownerOnly: true } : {}),
+      ...(raw.defaultTheme !== undefined ? { defaultTheme: raw.defaultTheme } : {}),
+      ...(raw.defaultAccent !== undefined ? { defaultAccent: raw.defaultAccent } : {}),
+      ...(raw.version !== undefined ? { version: raw.version } : {}),
+      ...(raw.lastUpdatedAt !== undefined ? { lastUpdatedAt: raw.lastUpdatedAt } : {}),
+      ...(raw.statusVariant !== undefined ? { statusVariant: raw.statusVariant } : {}),
+      ...(raw.visualKey !== undefined ? { visualKey: raw.visualKey } : {}),
+      ...(raw.tags !== undefined ? { tags: raw.tags } : {}),
+      ...(raw.visualMark !== undefined ? { visualMark: raw.visualMark } : {}),
     };
   });
 }
 
 /**
- * Loads and validates the apps config from `APPS_CONFIG_PATH`. URL fields may
- * contain `${ENV_VAR}` placeholders — they&rsquo;re resolved against
- * `process.env` at load time so the same file can drive dev, docker-dev, and
- * prod deployments without per-environment forks.
+ * Reads the top-level `publicDomain` string from the raw JSON. Required in
+ * production; optional in dev (unused by {@link resolveUrl} for localhost
+ * derivation). Throws if the key is present but malformed.
+ */
+function readPublicDomain(data: unknown, isProduction: boolean): string {
+  if (typeof data !== 'object' || data === null || !('publicDomain' in data)) {
+    if (isProduction) {
+      throw new Error(
+        'appsConfig.json: "publicDomain" is required when NODE_ENV=production (e.g. "robscholey.com")',
+      );
+    }
+    return '';
+  }
+  const { publicDomain } = data as { publicDomain: unknown };
+  if (typeof publicDomain !== 'string' || publicDomain === '') {
+    throw new Error('appsConfig.json: "publicDomain" must be a non-empty string when set');
+  }
+  return publicDomain;
+}
+
+/**
+ * Loads and validates the apps config from `APPS_CONFIG_PATH`. URL fields are
+ * derived from `subdomain` + top-level `publicDomain` (prod) or `port` (dev)
+ * so one file drives every environment without per-environment forks. An
+ * explicit `url` overrides derivation for external apps.
  *
  * Throws if the env var is unset, the file is missing, the shape is wrong,
- * or a URL placeholder references an undefined env var. Caches on first
- * read — call {@link _testReset} to clear.
+ * a URL can't be derived, or `publicDomain` is missing in production.
+ * Caches on first read — call {@link _testReset} to clear.
  */
 export async function loadAppsConfig(): Promise<AppConfig[]> {
   if (cached) return cached;
@@ -168,7 +285,9 @@ export async function loadAppsConfig(): Promise<AppConfig[]> {
 
   const raw = await readFile(path, 'utf8');
   const parsed = JSON.parse(raw);
-  cached = validate(parsed);
+  const isProduction = process.env.NODE_ENV === 'production';
+  const publicDomain = readPublicDomain(parsed, isProduction);
+  cached = validate(parsed, { publicDomain, isProduction });
   return cached;
 }
 

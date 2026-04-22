@@ -46,14 +46,26 @@ export function createAuthService(db: Database) {
     const [all, config] = await Promise.all([db.apps.list(), loadAppsConfig()]);
     const configById = new Map(config.map((a) => [a.id, a]));
     const allowed = new Set(appIds);
-    return all.filter((a) => {
-      const cfg = configById.get(a.id);
-      if (!cfg) return false;
-      if (!a.active) return false;
-      if (!allowed.has(a.id)) return false;
-      if (cfg.ownerOnly && userType !== 'owner') return false;
-      return true;
-    });
+    return all
+      .filter((a) => {
+        const cfg = configById.get(a.id);
+        if (!cfg) return false;
+        if (!a.active) return false;
+        if (!allowed.has(a.id)) return false;
+        if (cfg.ownerOnly && userType !== 'owner') return false;
+        return true;
+      })
+      .map((a) => {
+        // Tags + visualMark are config-sourced and merged into the DB row at
+        // read time so edits to appsConfig.json flow through on the next boot
+        // without a migration.
+        const cfg = configById.get(a.id);
+        return {
+          ...a,
+          ...(cfg?.tags !== undefined ? { tags: cfg.tags } : {}),
+          ...(cfg?.visualMark !== undefined ? { visualMark: cfg.visualMark } : {}),
+        };
+      });
   }
 
   async function createSessionFor(

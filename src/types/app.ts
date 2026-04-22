@@ -1,4 +1,4 @@
-import type { Accent, ShellTheme } from '@robscholey/contracts';
+import type { Accent, AppTag, ShellTheme } from '@robscholey/contracts';
 
 /** A registered sub-application in the platform. The `id` doubles as the URL slug. */
 export interface App {
@@ -20,4 +20,15 @@ export interface App {
   statusVariant?: 'live' | 'dev' | 'soon' | 'paused';
   /** Opaque key the shell maps to a local visual component (identity artwork). */
   visualKey?: string;
+  /**
+   * Tags rendered on the shell selector card. Config-sourced — not persisted
+   * on the DB row — populated by service-layer merges (e.g. `visibleAppsFor`)
+   * before the record is handed to `appToWire`.
+   */
+  tags?: AppTag[];
+  /**
+   * Short mono-style marker rendered top-left on the selector card. Same
+   * config-sourced provenance as {@link tags}.
+   */
+  visualMark?: string;
 }

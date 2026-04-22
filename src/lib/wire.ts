@@ -40,6 +40,8 @@ export function appToWire(a: App): WireApp {
     ...(a.lastUpdatedAt !== undefined ? { lastUpdatedAt: a.lastUpdatedAt.toISOString() } : {}),
     ...(a.statusVariant !== undefined ? { statusVariant: a.statusVariant } : {}),
     ...(a.visualKey !== undefined ? { visualKey: a.visualKey } : {}),
+    ...(a.tags !== undefined ? { tags: a.tags } : {}),
+    ...(a.visualMark !== undefined ? { visualMark: a.visualMark } : {}),
   };
 }
 

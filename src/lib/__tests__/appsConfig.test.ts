@@ -6,10 +6,12 @@ import { loadAppsConfig, _testReset } from '../appsConfig';
 
 let dir: string;
 let originalPath: string | undefined;
+let originalNodeEnv: string | undefined;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'apps-config-'));
   originalPath = process.env.APPS_CONFIG_PATH;
+  originalNodeEnv = process.env.NODE_ENV;
   _testReset();
 });
 
@@ -17,6 +19,8 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
   if (originalPath === undefined) delete process.env.APPS_CONFIG_PATH;
   else process.env.APPS_CONFIG_PATH = originalPath;
+  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = originalNodeEnv;
   _testReset();
 });
 
@@ -28,13 +32,15 @@ async function writeConfig(body: unknown): Promise<string> {
 }
 
 describe('loadAppsConfig', () => {
-  it('loads a valid config', async () => {
+  it('loads a valid config and derives dev URLs from port', async () => {
+    delete process.env.NODE_ENV;
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'demo',
           name: 'Demo',
-          url: 'http://localhost:3000',
+          port: 3000,
           iconUrl: '',
           description: 'A demo app',
         },
@@ -53,14 +59,76 @@ describe('loadAppsConfig', () => {
     ]);
   });
 
+  it('derives prod URLs from subdomain + publicDomain when NODE_ENV=production', async () => {
+    process.env.NODE_ENV = 'production';
+    await writeConfig({
+      publicDomain: 'robscholey.com',
+      apps: [
+        {
+          id: 'portfolio',
+          name: 'Portfolio',
+          port: 3003,
+          subdomain: 'portfolio',
+          iconUrl: '',
+          description: '',
+        },
+      ],
+    });
+
+    const [app] = await loadAppsConfig();
+    expect(app.url).toBe('https://portfolio.robscholey.com');
+  });
+
+  it('defaults subdomain to id when deriving prod URLs', async () => {
+    process.env.NODE_ENV = 'production';
+    await writeConfig({
+      publicDomain: 'robscholey.com',
+      apps: [
+        {
+          id: 'admin',
+          name: 'Admin',
+          port: 3005,
+          iconUrl: '',
+          description: '',
+        },
+      ],
+    });
+
+    const [app] = await loadAppsConfig();
+    expect(app.url).toBe('https://admin.robscholey.com');
+  });
+
+  it('uses an explicit url verbatim, bypassing derivation', async () => {
+    process.env.NODE_ENV = 'production';
+    await writeConfig({
+      publicDomain: 'robscholey.com',
+      apps: [
+        {
+          id: 'canopy',
+          name: 'Canopy',
+          url: 'https://canopy.external.example',
+          iconUrl: '',
+          description: '',
+        },
+      ],
+    });
+
+    const [app] = await loadAppsConfig();
+    expect(app.url).toBe('https://canopy.external.example');
+  });
+
   it('caches after first read', async () => {
-    const path = await writeConfig({ apps: [] });
+    const path = await writeConfig({
+      publicDomain: 'robscholey.com',
+      apps: [],
+    });
 
     const first = await loadAppsConfig();
     await writeFile(
       path,
       JSON.stringify({
-        apps: [{ id: 'x', name: 'X', url: 'u', iconUrl: '', description: '' }],
+        publicDomain: 'robscholey.com',
+        apps: [{ id: 'x', name: 'X', port: 3000, iconUrl: '', description: '' }],
       }),
       'utf8',
     );
@@ -74,37 +142,75 @@ describe('loadAppsConfig', () => {
     await expect(loadAppsConfig()).rejects.toThrow(/APPS_CONFIG_PATH/);
   });
 
+  it('throws when publicDomain is missing in production', async () => {
+    process.env.NODE_ENV = 'production';
+    await writeConfig({ apps: [] });
+    await expect(loadAppsConfig()).rejects.toThrow(/publicDomain/);
+  });
+
+  it('allows publicDomain to be omitted in development', async () => {
+    delete process.env.NODE_ENV;
+    await writeConfig({ apps: [] });
+    await expect(loadAppsConfig()).resolves.toEqual([]);
+  });
+
+  it('throws when publicDomain is an empty string', async () => {
+    await writeConfig({ publicDomain: '', apps: [] });
+    await expect(loadAppsConfig()).rejects.toThrow(/publicDomain/);
+  });
+
   it('throws on missing "apps" key', async () => {
-    await writeConfig({ notApps: [] });
+    await writeConfig({ publicDomain: 'robscholey.com', notApps: [] });
     await expect(loadAppsConfig()).rejects.toThrow(/apps/);
   });
 
   it('throws when "apps" is not an array', async () => {
-    await writeConfig({ apps: 'nope' });
+    await writeConfig({ publicDomain: 'robscholey.com', apps: 'nope' });
     await expect(loadAppsConfig()).rejects.toThrow(/must be an array/);
   });
 
   it('throws on missing string fields', async () => {
     await writeConfig({
-      apps: [{ id: 'x', name: 'X', url: 'u', iconUrl: '' }], // missing description
+      publicDomain: 'robscholey.com',
+      apps: [{ id: 'x', name: 'X', port: 3000, iconUrl: '' }], // missing description
     });
     await expect(loadAppsConfig()).rejects.toThrow(/description/);
   });
 
   it('throws on non-string field', async () => {
     await writeConfig({
-      apps: [{ id: 1, name: 'X', url: 'u', iconUrl: '', description: '' }],
+      publicDomain: 'robscholey.com',
+      apps: [{ id: 1, name: 'X', port: 3000, iconUrl: '', description: '' }],
     });
     await expect(loadAppsConfig()).rejects.toThrow(/id/);
   });
 
+  it('throws when id does not match the slug pattern', async () => {
+    await writeConfig({
+      publicDomain: 'robscholey.com',
+      apps: [
+        { id: 'Bad_ID', name: 'X', port: 3000, iconUrl: '', description: '' },
+      ],
+    });
+    await expect(loadAppsConfig()).rejects.toThrow(/id/);
+  });
+
+  it('throws when neither url nor port is set', async () => {
+    await writeConfig({
+      publicDomain: 'robscholey.com',
+      apps: [{ id: 'x', name: 'X', iconUrl: '', description: '' }],
+    });
+    await expect(loadAppsConfig()).rejects.toThrow(/url.*port|port.*url/);
+  });
+
   it('preserves ownerOnly when true', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'admin',
           name: 'Admin',
-          url: 'http://localhost:3005',
+          port: 3005,
           iconUrl: '',
           description: '',
           ownerOnly: true,
@@ -118,18 +224,19 @@ describe('loadAppsConfig', () => {
 
   it('omits ownerOnly when absent or false', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'a',
           name: 'A',
-          url: '',
+          port: 3000,
           iconUrl: '',
           description: '',
         },
         {
           id: 'b',
           name: 'B',
-          url: '',
+          port: 3001,
           iconUrl: '',
           description: '',
           ownerOnly: false,
@@ -144,11 +251,12 @@ describe('loadAppsConfig', () => {
 
   it('throws when ownerOnly is not a boolean', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'x',
           name: 'X',
-          url: '',
+          port: 3000,
           iconUrl: '',
           description: '',
           ownerOnly: 'yes',
@@ -160,11 +268,12 @@ describe('loadAppsConfig', () => {
 
   it('parses optional selector-metadata fields when set', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'demo',
           name: 'Demo',
-          url: '',
+          port: 3000,
           iconUrl: '',
           description: '',
           version: '0.3.0',
@@ -184,11 +293,12 @@ describe('loadAppsConfig', () => {
 
   it('rejects unknown statusVariant values', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'x',
           name: 'X',
-          url: '',
+          port: 3000,
           iconUrl: '',
           description: '',
           statusVariant: 'retired',
@@ -200,11 +310,12 @@ describe('loadAppsConfig', () => {
 
   it('rejects non-ISO lastUpdatedAt strings', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'x',
           name: 'X',
-          url: '',
+          port: 3000,
           iconUrl: '',
           description: '',
           lastUpdatedAt: 'yesterday',
@@ -216,16 +327,16 @@ describe('loadAppsConfig', () => {
 
   it('accepts optional dev-orchestration fields (dir, port, envFile)', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'demo',
           name: 'Demo',
-          url: 'http://localhost:3002',
+          port: 3002,
           iconUrl: '',
           description: '',
           dir: 'robscholey_template-child-nextJS',
-          port: 3002,
-          envFile: '.env.local',
+          envFile: '.env',
         },
       ],
     });
@@ -234,17 +345,17 @@ describe('loadAppsConfig', () => {
     // on the returned AppConfig — they're for the workspace dev scripts only.
     const [entry] = await loadAppsConfig();
     expect(entry).not.toHaveProperty('dir');
-    expect(entry).not.toHaveProperty('port');
     expect(entry).not.toHaveProperty('envFile');
   });
 
   it('rejects non-string dir', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'x',
           name: 'X',
-          url: '',
+          port: 3000,
           iconUrl: '',
           description: '',
           dir: 42,
@@ -256,11 +367,11 @@ describe('loadAppsConfig', () => {
 
   it('rejects non-integer port', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
           id: 'x',
           name: 'X',
-          url: '',
           iconUrl: '',
           description: '',
           port: '3000',
@@ -270,40 +381,20 @@ describe('loadAppsConfig', () => {
     await expect(loadAppsConfig()).rejects.toThrow(/port/);
   });
 
-  it('substitutes ${VAR} placeholders in URL fields at load time', async () => {
+  it('rejects non-string subdomain', async () => {
     await writeConfig({
+      publicDomain: 'robscholey.com',
       apps: [
         {
-          id: 'admin',
-          name: 'Admin',
-          url: '${ADMIN_URL}',
+          id: 'x',
+          name: 'X',
+          port: 3000,
           iconUrl: '',
           description: '',
+          subdomain: 42,
         },
       ],
     });
-    process.env.ADMIN_URL = 'http://localhost:3005';
-    try {
-      const [entry] = await loadAppsConfig();
-      expect(entry.url).toBe('http://localhost:3005');
-    } finally {
-      delete process.env.ADMIN_URL;
-    }
-  });
-
-  it('throws a pointing error when a URL placeholder is unset', async () => {
-    await writeConfig({
-      apps: [
-        {
-          id: 'admin',
-          name: 'Admin',
-          url: '${ADMIN_URL}',
-          iconUrl: '',
-          description: '',
-        },
-      ],
-    });
-    delete process.env.ADMIN_URL;
-    await expect(loadAppsConfig()).rejects.toThrow(/ADMIN_URL/);
+    await expect(loadAppsConfig()).rejects.toThrow(/subdomain/);
   });
 });
