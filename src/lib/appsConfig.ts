@@ -86,13 +86,34 @@ interface RawAppConfig {
   visualMark?: string;
 }
 
-/** Context the URL resolver needs to decide between dev and prod derivation. */
+/** Context the URL resolver needs to derive iframe URLs for each app. */
 interface ResolveContext {
-  publicDomain: string;
-  isProduction: boolean;
+  /**
+   * The origin users' browsers see for the platform — the URL the shell is
+   * served at. Everything else (auth, sub-apps) must be reachable from that
+   * same network vantage, so we derive their URLs by transforming this.
+   */
+  publicOrigin: URL;
+  /**
+   * `true` when `publicOrigin` is port-based (localhost, 127.0.0.1, or an
+   * IPv4 literal) — no reverse proxy is expected to be routing subdomains.
+   * iframe URLs are same-host-different-port instead.
+   */
+  isPortBased: boolean;
 }
 
 let cached: AppConfig[] | null = null;
+
+/**
+ * Tests whether a hostname is port-based (localhost / 127.0.0.1 / IPv4
+ * literal). Used by the URL resolver to decide between port-based and
+ * subdomain-based iframe URL derivation.
+ */
+function isPortBasedHost(host: string): boolean {
+  if (host === 'localhost' || host === '127.0.0.1') return true;
+  // IPv4 literal — anything else with dots is assumed to be a proper domain.
+  return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
 
 /**
  * Produces a browser-reachable URL for an app entry.
@@ -100,13 +121,15 @@ let cached: AppConfig[] | null = null;
  * Precedence:
  *   1. Explicit `url` in config — used verbatim. Covers external apps (e.g.
  *      one hosted outside this deploy) that shouldn't be derived.
- *   2. In production: `https://{subdomain ?? id}.{publicDomain}`. Caddy must
- *      be configured to route that subdomain to the backing container.
- *   3. In development: `http://localhost:{port}`. Matches the dev-ports
- *      exposed by `docker-compose.yml` and `scripts/dev.sh`.
+ *   2. `publicOrigin` is localhost / 127.0.0.1 / an IPv4 literal → port-based
+ *      `{scheme}://{host}:{port}` (containerised dev on localhost, LAN
+ *      testing from a phone, host dev, etc. — no reverse proxy in the mix).
+ *   3. Otherwise → subdomain-based `{scheme}://{subdomain ?? id}.{hostname}`.
+ *      Caddy (or another reverse proxy fronting the shell's public origin)
+ *      must be configured to route that subdomain to the backing container.
  *
  * @param raw - The raw config entry.
- * @param ctx - Public domain + environment hint.
+ * @param ctx - Resolved public origin + port-vs-subdomain hint.
  * @param i - Index into the `apps` array for error messages.
  * @returns The resolved URL as a string.
  * @throws If neither `url` nor `port` is set (nothing to derive).
@@ -118,16 +141,17 @@ function resolveUrl(raw: RawAppConfig, ctx: ResolveContext, i: number): string {
       `appsConfig.json: apps[${i}] needs either "url" or "port" so a URL can be derived`,
     );
   }
-  if (ctx.isProduction) {
-    const subdomain = raw.subdomain ?? raw.id;
-    return `https://${subdomain}.${ctx.publicDomain}`;
+  const { publicOrigin, isPortBased } = ctx;
+  if (isPortBased) {
+    return `${publicOrigin.protocol}//${publicOrigin.hostname}:${raw.port}`;
   }
-  return `http://localhost:${raw.port}`;
+  const subdomain = raw.subdomain ?? raw.id;
+  return `${publicOrigin.protocol}//${subdomain}.${publicOrigin.hostname}`;
 }
 
 function validate(data: unknown, ctx: ResolveContext): AppConfig[] {
   if (typeof data !== 'object' || data === null || !('apps' in data)) {
-    throw new Error('appsConfig.json: expected { "publicDomain": "...", "apps": [...] }');
+    throw new Error('appsConfig.json: expected { "apps": [...] }');
   }
   const { apps } = data as { apps: unknown };
   if (!Array.isArray(apps)) {
@@ -243,35 +267,34 @@ function validate(data: unknown, ctx: ResolveContext): AppConfig[] {
 }
 
 /**
- * Reads the top-level `publicDomain` string from the raw JSON. Required in
- * production; optional in dev (unused by {@link resolveUrl} for localhost
- * derivation). Throws if the key is present but malformed.
+ * Parses `PUBLIC_ORIGIN` into a URL object. This is the origin users'
+ * browsers see for the platform — the URL the shell is served at. Auth
+ * uses it to derive iframe URLs for sub-apps (same-host-different-port on
+ * localhost, subdomain-based otherwise). Optional; defaults to
+ * `http://localhost:3000` when unset so host-dev boots without a fuss.
  */
-function readPublicDomain(data: unknown, isProduction: boolean): string {
-  if (typeof data !== 'object' || data === null || !('publicDomain' in data)) {
-    if (isProduction) {
-      throw new Error(
-        'appsConfig.json: "publicDomain" is required when NODE_ENV=production (e.g. "robscholey.com")',
-      );
-    }
-    return '';
+function readPublicOrigin(): URL {
+  const raw = process.env.PUBLIC_ORIGIN ?? 'http://localhost:3000';
+  try {
+    return new URL(raw);
+  } catch {
+    throw new Error(
+      `PUBLIC_ORIGIN must be a valid URL (e.g. https://robscholey.com). Got: "${raw}"`,
+    );
   }
-  const { publicDomain } = data as { publicDomain: unknown };
-  if (typeof publicDomain !== 'string' || publicDomain === '') {
-    throw new Error('appsConfig.json: "publicDomain" must be a non-empty string when set');
-  }
-  return publicDomain;
 }
 
 /**
  * Loads and validates the apps config from `APPS_CONFIG_PATH`. URL fields are
- * derived from `subdomain` + top-level `publicDomain` (prod) or `port` (dev)
- * so one file drives every environment without per-environment forks. An
- * explicit `url` overrides derivation for external apps.
+ * derived from `PUBLIC_ORIGIN` — localhost/IP hosts produce port-based URLs
+ * (`http://<host>:<port>`), proper domains produce subdomain-based URLs
+ * (`https://{subdomain ?? id}.<domain>`) so one file drives every
+ * environment. An explicit `url` on an entry overrides derivation for
+ * external apps.
  *
- * Throws if the env var is unset, the file is missing, the shape is wrong,
- * a URL can't be derived, or `publicDomain` is missing in production.
- * Caches on first read — call {@link _testReset} to clear.
+ * Throws if the config file is missing, the shape is wrong, a URL can't be
+ * derived, or `PUBLIC_ORIGIN` is malformed. Caches on first read — call
+ * {@link _testReset} to clear.
  */
 export async function loadAppsConfig(): Promise<AppConfig[]> {
   if (cached) return cached;
@@ -285,9 +308,9 @@ export async function loadAppsConfig(): Promise<AppConfig[]> {
 
   const raw = await readFile(path, 'utf8');
   const parsed = JSON.parse(raw);
-  const isProduction = process.env.NODE_ENV === 'production';
-  const publicDomain = readPublicDomain(parsed, isProduction);
-  cached = validate(parsed, { publicDomain, isProduction });
+  const publicOrigin = readPublicOrigin();
+  const isPortBased = isPortBasedHost(publicOrigin.hostname);
+  cached = validate(parsed, { publicOrigin, isPortBased });
   return cached;
 }
 
