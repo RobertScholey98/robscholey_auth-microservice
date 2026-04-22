@@ -3,7 +3,8 @@ import migrate from 'node-pg-migrate';
 import { Pool } from 'pg';
 import { createApp } from './index';
 import { PostgresDatabase, createLogger } from './lib';
-import { loadAppsConfig } from './lib/appsConfig';
+import { buildAllowedOrigins } from './lib/allowedOrigins';
+import { loadAppsConfig, readPublicOrigin } from './lib/appsConfig';
 import { assertTestEndpointsAllowed } from './middleware';
 import { seed } from './seed';
 import { buildServices } from './services';
@@ -59,7 +60,14 @@ async function main() {
 
   await seed(database, logger);
 
-  const app = createApp(database, logger, { backgroundTickers: true });
+  // CORS allowlist is the shell's public origin plus every resolved sub-app
+  // URL — no separate ALLOWED_ORIGINS env var needed in the common case.
+  // The env is still read as an optional override for edge cases.
+  const publicOrigin = readPublicOrigin();
+  const allowedOrigins = buildAllowedOrigins(publicOrigin, config, process.env.ALLOWED_ORIGINS);
+  logger.info({ event: 'boot.cors.configured', allowedOrigins });
+
+  const app = createApp(database, logger, { backgroundTickers: true, allowedOrigins });
   serve({ fetch: app.fetch, port: AUTH_SERVICE_PORT }, (info) => {
     logger.info({ event: 'boot.server.listening', port: info.port });
   });

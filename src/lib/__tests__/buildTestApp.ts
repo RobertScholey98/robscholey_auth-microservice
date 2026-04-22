@@ -43,6 +43,14 @@ export function buildTestApp(): TestAppBundle {
   const database = new PostgresDatabase(new Pool({ connectionString: url }));
   const silentLogger = pino({ level: 'silent' });
   const events = createEventsBus();
-  const app = createApp(database, silentLogger, { events });
+  // CORS allowlist comes from the `ALLOWED_ORIGINS` env the suites already
+  // set in beforeAll. The prod path (`src/dev.ts`) derives this list from
+  // PUBLIC_ORIGIN + appsConfig — tests skip the derivation and stub a
+  // minimal list instead.
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const app = createApp(database, silentLogger, { events, allowedOrigins });
   return { app, database, events };
 }

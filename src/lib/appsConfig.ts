@@ -272,8 +272,11 @@ function validate(data: unknown, ctx: ResolveContext): AppConfig[] {
  * uses it to derive iframe URLs for sub-apps (same-host-different-port on
  * localhost, subdomain-based otherwise). Optional; defaults to
  * `http://localhost:3000` when unset so host-dev boots without a fuss.
+ *
+ * Exported for callers that need the origin alongside the loaded apps —
+ * e.g. boot-time CORS allowlist construction — without re-reading the env.
  */
-function readPublicOrigin(): URL {
+export function readPublicOrigin(): URL {
   const raw = process.env.PUBLIC_ORIGIN ?? 'http://localhost:3000';
   try {
     return new URL(raw);

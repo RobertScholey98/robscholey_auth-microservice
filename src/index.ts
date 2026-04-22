@@ -49,6 +49,13 @@ export interface CreateAppOptions {
    * constructs a private bus per invocation.
    */
   events?: EventsBus;
+  /**
+   * Origins permitted by the CORS middleware. Typically derived at boot
+   * from `PUBLIC_ORIGIN` + each loaded app's resolved URL (see
+   * {@link buildAllowedOrigins}). Tests pass a minimal list. When empty,
+   * CORS refuses every cross-origin request.
+   */
+  allowedOrigins?: readonly string[];
 }
 
 /**
@@ -74,6 +81,7 @@ export function createApp(
 ): Hono<Env> {
   const events = options.events ?? createEventsBus();
   const services = buildServices(database);
+  const allowedOrigins = new Set(options.allowedOrigins ?? []);
 
   const app = new Hono<Env>().basePath('/api');
 
@@ -83,10 +91,7 @@ export function createApp(
   app.use(
     '*',
     cors({
-      origin: (origin) => {
-        const allowed = (process.env.ALLOWED_ORIGINS || '').split(',');
-        return allowed.includes(origin) ? origin : undefined;
-      },
+      origin: (origin) => (allowedOrigins.has(origin) ? origin : undefined),
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'Authorization'],
     }),
