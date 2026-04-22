@@ -90,10 +90,13 @@ function validate(data: unknown): AppConfig[] {
     if (e.ownerOnly !== undefined && typeof e.ownerOnly !== 'boolean') {
       throw new Error(`appsConfig.json: apps[${i}].ownerOnly must be a boolean when set`);
     }
-    for (const field of ['version', 'lastUpdatedAt', 'visualKey'] as const) {
+    for (const field of ['version', 'lastUpdatedAt', 'visualKey', 'dir', 'envFile'] as const) {
       if (e[field] !== undefined && typeof e[field] !== 'string') {
         throw new Error(`appsConfig.json: apps[${i}].${field} must be a string when set`);
       }
+    }
+    if (e.port !== undefined && (typeof e.port !== 'number' || !Number.isInteger(e.port))) {
+      throw new Error(`appsConfig.json: apps[${i}].port must be an integer when set`);
     }
     if (e.lastUpdatedAt !== undefined && Number.isNaN(Date.parse(e.lastUpdatedAt as string))) {
       throw new Error(

@@ -214,6 +214,62 @@ describe('loadAppsConfig', () => {
     await expect(loadAppsConfig()).rejects.toThrow(/lastUpdatedAt/);
   });
 
+  it('accepts optional dev-orchestration fields (dir, port, envFile)', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'demo',
+          name: 'Demo',
+          url: 'http://localhost:3002',
+          iconUrl: '',
+          description: '',
+          dir: 'robscholey_template-child-nextJS',
+          port: 3002,
+          envFile: '.env.local',
+        },
+      ],
+    });
+
+    // Validation passes; dev-orchestration fields are intentionally not surfaced
+    // on the returned AppConfig — they're for the workspace dev scripts only.
+    const [entry] = await loadAppsConfig();
+    expect(entry).not.toHaveProperty('dir');
+    expect(entry).not.toHaveProperty('port');
+    expect(entry).not.toHaveProperty('envFile');
+  });
+
+  it('rejects non-string dir', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'x',
+          name: 'X',
+          url: '',
+          iconUrl: '',
+          description: '',
+          dir: 42,
+        },
+      ],
+    });
+    await expect(loadAppsConfig()).rejects.toThrow(/dir/);
+  });
+
+  it('rejects non-integer port', async () => {
+    await writeConfig({
+      apps: [
+        {
+          id: 'x',
+          name: 'X',
+          url: '',
+          iconUrl: '',
+          description: '',
+          port: '3000',
+        },
+      ],
+    });
+    await expect(loadAppsConfig()).rejects.toThrow(/port/);
+  });
+
   it('substitutes ${VAR} placeholders in URL fields at load time', async () => {
     await writeConfig({
       apps: [
