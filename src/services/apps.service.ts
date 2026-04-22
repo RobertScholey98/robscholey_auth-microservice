@@ -59,6 +59,30 @@ export function createAppsService(db: Database) {
     },
 
     /**
+     * Updates an app's default theme and/or accent. Partial patch — either
+     * field can be omitted. The service writes both values straight through
+     * to the DB; `syncFromConfig` is insert-only for these columns so the
+     * admin's edit survives redeploys.
+     *
+     * Throws {@link NotFoundError} for unknown app ids.
+     *
+     * @param id - App id.
+     * @param patch - Fields to update. Caller validates the shape (the
+     *   contract's `patchAppDefaultsSchema.refine` already forbids an empty
+     *   patch at the handler layer).
+     */
+    async updateDefaults(
+      id: string,
+      patch: { defaultTheme?: App['defaultTheme']; defaultAccent?: App['defaultAccent'] },
+    ): Promise<App> {
+      const updated = await db.apps.update(id, patch);
+      if (!updated) {
+        throw new NotFoundError(ErrorCode.AdminAppNotFound, 'App not found');
+      }
+      return updated;
+    },
+
+    /**
      * Toggles the `active` flag on an app. Rejects owner-only apps, which
      * are force-active on every boot sync and therefore not toggleable.
      * Throws {@link BadRequestError} for owner-only targets and

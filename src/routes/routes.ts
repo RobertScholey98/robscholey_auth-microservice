@@ -7,6 +7,7 @@ import { pokeSession, resetRateLimit } from './handlers/test';
 import {
   listApps,
   patchAppActive,
+  patchAppDefaults,
   deleteApp,
   listUsers,
   createUser,
@@ -57,9 +58,10 @@ export function registerRoutes(app: Hono<Env>) {
   //  Middleware
   app.use('/admin/*', adminAuth);
 
-  //  Apps (structural CRUD lives in appsConfig.json; runtime state is active + orphan removal)
+  //  Apps (structural CRUD lives in appsConfig.json; runtime state is active + theming defaults + orphan removal)
   app.get('/admin/apps', listApps);
   app.patch('/admin/apps/:id/active', patchAppActive);
+  app.patch('/admin/apps/:id/defaults', patchAppDefaults);
   app.delete('/admin/apps/:id', deleteApp);
 
   //  Users

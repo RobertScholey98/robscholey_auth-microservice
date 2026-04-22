@@ -170,8 +170,6 @@ describe('PATCH /api/admin/apps/:id/active', () => {
   it('toggles active to true', async () => {
     const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
       active: true,
-      defaultTheme: 'dark',
-      defaultAccent: 'teal',
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -182,8 +180,6 @@ describe('PATCH /api/admin/apps/:id/active', () => {
     await db.apps.update('in-config', { active: true });
     const res = await adminReq('PATCH', '/api/admin/apps/in-config/active', {
       active: false,
-      defaultTheme: 'dark',
-      defaultAccent: 'teal',
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -200,8 +196,71 @@ describe('PATCH /api/admin/apps/:id/active', () => {
   it('returns 404 for missing app', async () => {
     const res = await adminReq('PATCH', '/api/admin/apps/nope/active', {
       active: true,
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('PATCH /api/admin/apps/:id/defaults', () => {
+  beforeEach(async () => {
+    await db.apps.create({
+      id: 'in-config',
+      name: 'In Config',
+      url: 'http://localhost:3999',
+      iconUrl: '',
+      description: '',
+      active: true,
       defaultTheme: 'dark',
       defaultAccent: 'teal',
+    });
+  });
+
+  it('updates defaultAccent in isolation', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/defaults', {
+      defaultAccent: 'fsgb',
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.defaultAccent).toBe('fsgb');
+    expect(body.defaultTheme).toBe('dark');
+  });
+
+  it('updates defaultTheme in isolation', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/defaults', {
+      defaultTheme: 'light',
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.defaultTheme).toBe('light');
+    expect(body.defaultAccent).toBe('teal');
+  });
+
+  it('updates both defaults together', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/defaults', {
+      defaultTheme: 'light',
+      defaultAccent: 'rose',
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.defaultTheme).toBe('light');
+    expect(body.defaultAccent).toBe('rose');
+  });
+
+  it('rejects an empty patch', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/defaults', {});
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an unknown accent', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/in-config/defaults', {
+      defaultAccent: 'cyberpunk',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 for missing app', async () => {
+    const res = await adminReq('PATCH', '/api/admin/apps/nope/defaults', {
+      defaultAccent: 'rose',
     });
     expect(res.status).toBe(404);
   });

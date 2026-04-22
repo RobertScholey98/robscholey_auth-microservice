@@ -1,4 +1,4 @@
-export { listApps, patchAppActive, deleteApp } from './apps';
+export { listApps, patchAppActive, patchAppDefaults, deleteApp } from './apps';
 export { listUsers, createUser, updateUser, deleteUser } from './users';
 export { listCodes, createCode, updateCode, deleteCode } from './codes';
 export { listSessions, deleteSession } from './sessions';

@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { patchAppActiveSchema } from '@robscholey/contracts';
+import { patchAppActiveSchema, patchAppDefaultsSchema } from '@robscholey/contracts';
 import { appToWire } from '@/lib/wire';
 import type { Env } from '@/index';
 
@@ -32,6 +32,24 @@ export async function patchAppActive(c: Context<Env>) {
     event: 'admin.apps.patch',
     appId: id,
     changes: { active: body.active },
+  });
+  return c.json(appToWire(updated));
+}
+
+/**
+ * Updates an app's default theme and/or accent. Body accepts either or both
+ * fields; the contract schema rejects an empty patch. Persisted to the DB;
+ * `syncFromConfig` is insert-only for these columns so the change survives
+ * subsequent redeploys.
+ */
+export async function patchAppDefaults(c: Context<Env>) {
+  const id = c.req.param('id')!;
+  const body = patchAppDefaultsSchema.parse(await c.req.json());
+  const updated = await c.get('services').apps.updateDefaults(id, body);
+  c.get('logger').info({
+    event: 'admin.apps.patch',
+    appId: id,
+    changes: body,
   });
   return c.json(appToWire(updated));
 }
