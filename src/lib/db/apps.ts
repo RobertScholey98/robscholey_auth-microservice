@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import type { AppMeta } from '@robscholey/contracts';
 import type { App } from '@/types';
 import { mapApp, type Row } from './mappers';
 
@@ -8,8 +9,14 @@ export interface AppsRepo {
   list(): Promise<App[]>;
   /** Returns a single app by ID, or `null` if not found. */
   get(id: string): Promise<App | null>;
-  /** Returns public metadata (name, icon) for an active app, or `null` if not found or inactive. */
-  getMeta(id: string): Promise<{ name: string; iconUrl: string } | null>;
+  /**
+   * Returns public metadata (name, icon, default theme + accent) for an
+   * active app, or `null` if not found or inactive. Consumed by the
+   * unauthenticated `/apps/:slug/meta` endpoint — the extra theming fields
+   * are what sub-apps fetch from their SSR layout so first paint is
+   * accent-correct.
+   */
+  getMeta(id: string): Promise<AppMeta | null>;
   /** Creates a new app record. */
   create(app: App): Promise<App>;
   /** Partially updates an app by ID. Returns the updated app, or `null` if not found. */
@@ -40,11 +47,16 @@ export class InMemoryAppsRepo implements AppsRepo {
     return this.apps.get(id) ?? null;
   }
 
-  /** Returns public metadata (name, icon) for an active app, or `null` if not found or inactive. */
-  async getMeta(id: string): Promise<{ name: string; iconUrl: string } | null> {
+  /** Returns public metadata for an active app, or `null` if not found or inactive. */
+  async getMeta(id: string): Promise<AppMeta | null> {
     const app = this.apps.get(id);
     if (!app || !app.active) return null;
-    return { name: app.name, iconUrl: app.iconUrl };
+    return {
+      name: app.name,
+      iconUrl: app.iconUrl,
+      defaultTheme: app.defaultTheme,
+      defaultAccent: app.defaultAccent,
+    };
   }
 
   /** Creates a new app record. */
@@ -87,14 +99,19 @@ export class PostgresAppsRepo implements AppsRepo {
     return rows[0] ? mapApp(rows[0]) : null;
   }
 
-  /** Returns public metadata (name, icon) for an active app, or `null` if not found or inactive. */
-  async getMeta(id: string): Promise<{ name: string; iconUrl: string } | null> {
+  /** Returns public metadata for an active app, or `null` if not found or inactive. */
+  async getMeta(id: string): Promise<AppMeta | null> {
     const { rows } = await this.pool.query<Row>(
-      'SELECT name, icon_url FROM apps WHERE id = $1 AND active = TRUE',
+      'SELECT name, icon_url, default_theme, default_accent FROM apps WHERE id = $1 AND active = TRUE',
       [id],
     );
     if (!rows[0]) return null;
-    return { name: rows[0].name as string, iconUrl: rows[0].icon_url as string };
+    return {
+      name: rows[0].name as string,
+      iconUrl: rows[0].icon_url as string,
+      defaultTheme: rows[0].default_theme as AppMeta['defaultTheme'],
+      defaultAccent: rows[0].default_accent as AppMeta['defaultAccent'],
+    };
   }
 
   /** Creates a new app record. */

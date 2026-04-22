@@ -53,11 +53,13 @@ describe('PostgresDatabase — Apps', () => {
     expect(await db.apps.get('portfolio')).toBeNull();
   });
 
-  it('getMeta returns name and iconUrl for active apps', async () => {
+  it('getMeta returns name, iconUrl, and theming defaults for active apps', async () => {
     await db.apps.create(app);
     expect(await db.apps.getMeta('portfolio')).toEqual({
       name: 'Portfolio',
       iconUrl: '/icons/portfolio.png',
+      defaultTheme: 'dark',
+      defaultAccent: 'teal',
     });
   });
 

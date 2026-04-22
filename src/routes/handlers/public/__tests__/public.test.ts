@@ -37,15 +37,22 @@ describe('GET /api/apps/:slug/meta', () => {
       description: 'My portfolio',
       active: true,
       defaultTheme: 'dark',
-      defaultAccent: 'teal',
+      defaultAccent: 'warm',
     });
 
     const res = await app.request('/api/apps/portfolio/meta');
     expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe(
+      'public, max-age=60, stale-while-revalidate=600',
+    );
 
     const body = await res.json();
-    expect(body.name).toBe('Portfolio');
-    expect(body.iconUrl).toBe('/icons/portfolio.png');
+    expect(body).toEqual({
+      name: 'Portfolio',
+      iconUrl: '/icons/portfolio.png',
+      defaultTheme: 'dark',
+      defaultAccent: 'warm',
+    });
   });
 
   it('returns 404 for nonexistent app', async () => {

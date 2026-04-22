@@ -8,6 +8,16 @@ import type { Env } from '@/index';
 const ICON_CACHE_MAX_AGE = 3600;
 
 /**
+ * App-meta cache window — sub-app SSR fetches hit this endpoint on every
+ * cold render, so we want a short but non-zero cache window. 60s lets
+ * Next.js's `revalidate: 60` layer hold the value across hot navigations
+ * while still picking up admin edits on the next minute boundary;
+ * stale-while-revalidate extends the soft window to ten minutes so a
+ * slow DB doesn't block a render.
+ */
+const APP_META_CACHE = 'public, max-age=60, stale-while-revalidate=600';
+
+/**
  * Renders a placeholder SVG for an app icon — a dark-rounded tile with the
  * first alphanumeric character of the app's name. Pure presentation: SVG is
  * an HTTP output format, not a service concern.
@@ -26,10 +36,12 @@ function renderPlaceholderSvg(name: string): string {
 </svg>`;
 }
 
-/** Returns public metadata (name, icon URL) for an active app by slug. No auth required. */
+/** Returns public metadata (name, icon URL, default theme + accent) for an active app by slug. No auth required. */
 export async function getAppMeta(c: Context<Env>) {
   const slug = c.req.param('slug')!;
-  return c.json(await c.get('services').public.getAppMeta(slug));
+  const meta = await c.get('services').public.getAppMeta(slug);
+  c.header('Cache-Control', APP_META_CACHE);
+  return c.json(meta);
 }
 
 /** Serves the app icon for a given slug. Returns a placeholder SVG for now. */
